@@ -1,0 +1,25 @@
+FROM mcr.microsoft.com/windows/servercore:ltsc2019
+
+WORKDIR C:\\app
+COPY . .
+
+ADD https://www.python.org/ftp/python/2.7.18/python-2.7.18.msi C:\\python-2.7.18.msi
+RUN msiexec /i C:\\python-2.7.18.msi TARGETDIR=C:\\Python27 /qn
+ENV PATH="C:\\Python27;C:\\Python27\\Scripts;%PATH%"
+
+# Install necessary Python packages
+WORKDIR C:\\app\\stompy2
+RUN pip install --upgrade setuptools
+RUN pip install configparser
+RUN pip install -e .
+RUN pip install pandas
+RUN pip install matplotlib
+RUN pip install scipy
+
+WORKDIR C:\\app\\whls
+RUN pip install netCDF4-1.1.7+numpy16-cp27-none-win32.whl
+
+# RUN pip install GDAL-2.2.4-cp27-cp27m-win_amd64.whl
+# RUN pip install matplotlib-2.2.5-cp27-cp27m-win_amd64.whl
+# RUN pip install netCDF4-1.1.7+numpy16-cp27-none-win_amd64.whl
+# RUN pip install Shapely-1.6.4.post2-cp27-cp27m-win_amd64.whl

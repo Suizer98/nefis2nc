@@ -1,0 +1,16 @@
+backports.functools-lru-cache==1.6.6
+cycler==0.10.0
+GDAL @ file:///D:/github/nefis2nc/GDAL-2.2.4-cp27-cp27m-win_amd64.whl
+kiwisolver==1.1.0
+matplotlib @ file:///D:/github/nefis2nc/matplotlib-2.2.5-cp27-cp27m-win_amd64.whl
+netCDF4 @ file:///D:/github/nefis2nc/netCDF4-1.1.7%2Bnumpy16-cp27-none-win_amd64.whl
+numpy==1.16.6
+pandas==0.24.2
+pyparsing==2.4.7
+python-dateutil==2.8.2
+pytz==2023.3
+scipy==1.2.3
+Shapely @ file:///D:/github/nefis2nc/Shapely-1.6.4.post2-cp27-cp27m-win_amd64.whl
+six==1.16.0
+-e git+https://github.com/rustychris/stompy.git@c49cfce20dc6420c8644e1bffbe3716921de0c15#egg=stompy
+xarray==0.11.3

@@ -234,6 +234,8 @@ def create_organised_trihnc(datfile, deffile, outputfile):
     #     dataset.variables['time'][i, :] = np.array(date, dtype='S' + str(25))
     dataset.createVariable("time", float, ("time",))
     dataset.variables["time"][:] = time
+    dataset.variables["time"].units = "days since 1970-01-01"
+    dataset.variables["time"].calendar = "standard"
 
     # Create variable for tau, u, mask
     dataset.createVariable("mask", float, ("time", "Station"))

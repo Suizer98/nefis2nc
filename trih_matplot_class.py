@@ -6,7 +6,8 @@ import random
 import os
 
 import matplotlib
-matplotlib.use('Agg')
+
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 
@@ -134,6 +135,7 @@ class historyFile:
 
             # return string
         return new
+
 
 testDirectory = os.path.join(os.getcwd(), "testdata/")
 # test = historyFile(testDirectory + "trih-scsmCddb.nc")

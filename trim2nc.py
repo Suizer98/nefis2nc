@@ -164,8 +164,8 @@ def create_organised_trimnc(datfile, deffile, outputfile):
     # Apply mask
     kcs = src_ds.variables["kcs"][:]
     kcs = kcs.astype(float)
-    kcs[(kcs == 3) & (kcs == 2) & (kcs == 1) ] = 1
-    kcs[(kcs != 1) & (kcs != 0) ] = 0
+    kcs[(kcs == 3) & (kcs == 2) & (kcs == 1)] = 1
+    kcs[(kcs != 1) & (kcs != 0)] = 0
     xcor = kcs * xcor
     ycor = kcs * ycor
     masked_xcor = np.ma.masked_equal(xcor, 0)
@@ -179,7 +179,7 @@ def create_organised_trimnc(datfile, deffile, outputfile):
     # Apply mask
     kcs = src_ds.variables["kcs"][:]
     kcs = kcs.astype(float)
-    kcs[(kcs == 3) & (kcs == 2) & (kcs == 1) ] = 1
+    kcs[(kcs == 3) & (kcs == 2) & (kcs == 1)] = 1
     kcs[(kcs != 1) & (kcs != 0)] = 0
     longitude = kcs * xzdata
     latitude = kcs * yzdata
@@ -211,7 +211,9 @@ def create_organised_trimnc(datfile, deffile, outputfile):
     dst_ds.createDimension("bounds4", 4)
 
     # Add the "time" variable to the destination dataset
-    dst_var_time = dst_ds.createVariable("time", "f8", ("time",))  # Use 'f8' for float64 data type
+    dst_var_time = dst_ds.createVariable(
+        "time", "f8", ("time",)
+    )  # Use 'f8' for float64 data type
     dst_var_time[:] = time
     dst_var_time.units = "days since 1970-01-01"
     dst_var_time.calendar = "standard"
@@ -224,7 +226,9 @@ def create_organised_trimnc(datfile, deffile, outputfile):
 
     # Add grid_latitude and grid_longitude variable
     grid_latitude = dst_ds.createVariable("grid_latitude", float, ("m", "n", "bounds4"))
-    grid_longitude = dst_ds.createVariable("grid_longitude", float, ("m", "n", "bounds4"))
+    grid_longitude = dst_ds.createVariable(
+        "grid_longitude", float, ("m", "n", "bounds4")
+    )
 
     # Create four redundant sets of grid_latitude and grid_longitude
     for i in range(4):
@@ -252,7 +256,6 @@ def create_organised_trimnc(datfile, deffile, outputfile):
             shifted_ycor = np.roll(masked_ycor, 1, axis=1)
             grid_longitude[:, :, i] = shifted_xcor
             grid_latitude[:, :, i] = shifted_ycor
-
 
     # Add latitude and longitude variable
     lat_var = dst_ds.createVariable("latitude", float, ("m", "n"))

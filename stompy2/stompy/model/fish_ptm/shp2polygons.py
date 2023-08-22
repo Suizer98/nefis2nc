@@ -8,17 +8,18 @@ from __future__ import print_function
 import numpy as np
 from ...spatial import wkb2shp
 
-import shapely.wkb,shapely.geometry
+import shapely.wkb, shapely.geometry
 
 import sys
 import os.path
 import argparse
 import glob
 
-name_field='name'
+name_field = "name"
 
-def write_polygons_to_textfile(layer,output_name):
-    """ Given an array of polygons as returned from
+
+def write_polygons_to_textfile(layer, output_name):
+    """Given an array of polygons as returned from
     wkb2shp, write a text file
     of the format:
 
@@ -29,33 +30,34 @@ def write_polygons_to_textfile(layer,output_name):
     {repeat nvertices times}
     <x> <y>
     """
-    fp = open(output_name,'wt')
+    fp = open(output_name, "wt")
 
     npolygons = len(layer)
 
-    fp.write("%d\n"%npolygons)
+    fp.write("%d\n" % npolygons)
 
     for i in range(npolygons):
         feat = layer[i]
-        geom=feat['geom']
-        assert geom.type=='Polygon',"All features must be polygons"
-        assert len(geom.interiors)==0,"No support for interior rings"
+        geom = feat["geom"]
+        assert geom.type == "Polygon", "All features must be polygons"
+        assert len(geom.interiors) == 0, "No support for interior rings"
 
         points = np.array(geom.exterior.coords)
 
         name = ""
         try:
-            name=feat[name_field]
+            name = feat[name_field]
         except IndexError:
-            name = "POLYGON%03d"%(i+1)
-        fp.write("%s\n"%name)
-        fp.write("%d\n"%points.shape[0])
+            name = "POLYGON%03d" % (i + 1)
+        fp.write("%s\n" % name)
+        fp.write("%d\n" % points.shape[0])
         for i in range(points.shape[0]):
-            fp.write("%.0f %.0f\n"%(points[i,0],points[i,1]))
+            fp.write("%.0f %.0f\n" % (points[i, 0], points[i, 1]))
     fp.close()
 
-def write_polygons_to_folder(layer,output_dir):
-    """ Given an ogr Polygon layer, write a text file
+
+def write_polygons_to_folder(layer, output_dir):
+    """Given an ogr Polygon layer, write a text file
     for each polygon of the format:
 
      POLYGON_NAME
@@ -73,49 +75,51 @@ def write_polygons_to_folder(layer,output_dir):
         os.mkdir(output_dir)
 
     npolygons = len(layer)
-    print("npoly=%d"%npolygons)
+    print("npoly=%d" % npolygons)
 
-    roster_fp = open(os.path.join(output_dir,"groups.txt"),'wt')
+    roster_fp = open(os.path.join(output_dir, "groups.txt"), "wt")
     roster_fp.write(" GROUP#  FILENAME\n")
 
     for i in range(npolygons):
         feat = layer[i]
         name = feat[name_field]
-        output_name = os.path.join(output_dir,"%s.pol"%name)
+        output_name = os.path.join(output_dir, "%s.pol" % name)
 
-        roster_fp.write(" %-7i %s\n"%(i+1,os.path.basename(output_name)))
+        roster_fp.write(" %-7i %s\n" % (i + 1, os.path.basename(output_name)))
 
-        with open(output_name,'wt') as fp:
-            geom=feat['geom']
-            assert geom.type=='Polygon',"All features must be polygons"
-            assert len(geom.interiors)==0,"No support for interior rings"
+        with open(output_name, "wt") as fp:
+            geom = feat["geom"]
+            assert geom.type == "Polygon", "All features must be polygons"
+            assert len(geom.interiors) == 0, "No support for interior rings"
             points = np.array(geom.exterior.coords)
 
             # Write the data:
-            fp.write(" POLYGON_NAME\n %s\n"%name)
-            fp.write(" NUMBER_OF_VERTICES\n %d\n"%points.shape[0])
+            fp.write(" POLYGON_NAME\n %s\n" % name)
+            fp.write(" NUMBER_OF_VERTICES\n %d\n" % points.shape[0])
             fp.write(" EASTING   NORTHING (free format)\n")
             for i in range(points.shape[0]):
-                fp.write(" %.4f %.4f\n"%(points[i,0],points[i,1]))
+                fp.write(" %.4f %.4f\n" % (points[i, 0], points[i, 1]))
     roster_fp.close()
+
 
 ### run it
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser()
-    parser.add_argument("shp",help="Shapefile path, e.g. 'data/polygons.shp'")
-    parser.add_argument("prefix",help="Output prefix" )
-    parser.add_argument("-m",help="Multi-file output")
-    args=parser.parse_args()
+    parser.add_argument("shp", help="Shapefile path, e.g. 'data/polygons.shp'")
+    parser.add_argument("prefix", help="Output prefix")
+    parser.add_argument("-m", help="Multi-file output")
+    args = parser.parse_args()
 
     multifile_output = True
 
     ## get to work...
-    layer=wkb2shp.shp2geom(args.shp)
+    layer = wkb2shp.shp2geom(args.shp)
     output_txt = args.prefix + ".txt"
 
-    write_polygons_to_textfile(layer,output_txt)
+    write_polygons_to_textfile(layer, output_txt)
 
     if multifile_output:
         # and multifile output to a directory
@@ -123,5 +127,4 @@ if __name__ == '__main__':
             os.mkdir(args.prefix)
         # clear out old files -- RH that seems a bit risky
         # [os.unlink(f) for f in glob.glob(out_prefix+'/*')]
-        write_polygons_to_folder(layer,args.prefix)
-
+        write_polygons_to_folder(layer, args.prefix)

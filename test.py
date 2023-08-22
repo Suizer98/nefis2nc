@@ -3,10 +3,11 @@ import sys
 import logging
 import subprocess
 
-log=logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 import ctypes
-from ctypes import * 
+from ctypes import *
+
 
 def load_nef_lib():
     """
@@ -21,7 +22,7 @@ def load_nef_lib():
     return None if the DLL cannot be found
     """
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    nefis_dll_path = os.path.join(script_dir, 'libNefis.so')
+    nefis_dll_path = os.path.join(script_dir, "libNefis.so")
 
     if os.path.exists(nefis_dll_path):
         try:
@@ -31,15 +32,19 @@ def load_nef_lib():
             log.warning("Used nefis.dll in the script directory")
             return cdll.LoadLibrary(nefis_dll_path)
 
-_nef_lib=False # False=> uninitialized, None=> not found
+
+_nef_lib = False  # False=> uninitialized, None=> not found
+
+
 def nef_lib():
     global _nef_lib
     if _nef_lib is False:
-        _nef_lib=load_nef_lib()
+        _nef_lib = load_nef_lib()
     return _nef_lib
 
+
 script_dir = os.path.dirname(os.path.abspath(__file__))
-nefis_dll_path = os.path.join(script_dir, 'libNefis.so')
+nefis_dll_path = os.path.join(script_dir, "libNefis.so")
 nefis_lib = ctypes.CDLL(nefis_dll_path, ctypes.RTLD_GLOBAL)
 
 # Now you can use functions from the loaded library

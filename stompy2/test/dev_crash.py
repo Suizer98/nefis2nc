@@ -10,30 +10,27 @@ from scipy import optimize as opt
 from stompy.spatial import field
 from stompy import utils
 
-from stompy.grid import (unstructured_grid, exact_delaunay, front)
+from stompy.grid import unstructured_grid, exact_delaunay, front
 
 import logging
+
 logging.basicConfig(level=logging.INFO)
 
-from stompy.spatial.linestring_utils import upsample_linearring,resample_linearring
-from stompy.spatial import field,constrained_delaunay,wkb2shp
+from stompy.spatial.linestring_utils import upsample_linearring, resample_linearring
+from stompy.spatial import field, constrained_delaunay, wkb2shp
 
 ## Curve -
 
+
 def hex_curve():
-    hexagon = np.array( [[0,11],
-                         [10,0],
-                         [30,0],
-                         [40,9],
-                         [30,20],
-                         [10,20]] )
+    hexagon = np.array([[0, 11], [10, 0], [30, 0], [40, 9], [30, 20], [10, 20]])
     return front.Curve(hexagon)
 
 
 def test_basic_setup():
-    boundary=hex_curve()
-    af=front.AdvancingTriangles()
-    scale=field.ConstantField(3)
+    boundary = hex_curve()
+    af = front.AdvancingTriangles()
+    scale = field.ConstantField(3)
 
     af.add_curve(boundary)
     af.set_edge_scale(scale)
@@ -43,22 +40,25 @@ def test_basic_setup():
 
     return af
 
+
 # when resample nodes on a sliding boundary, want to calculate the available
 # span, and if it's small, start distributing the nodes evenly.
 # where small is defined by local_scale * max_span_factor
 
+
 def test_resample():
-    af=test_basic_setup()
-    a=0
-    b=af.grid.node_to_nodes(a)[0]
-    he=af.grid.nodes_to_halfedge(a,b)
-    anchor=he.node_rev()
-    n=he.node_fwd()
-    n2=he.rev().node_rev()
+    af = test_basic_setup()
+    a = 0
+    b = af.grid.node_to_nodes(a)[0]
+    he = af.grid.nodes_to_halfedge(a, b)
+    anchor = he.node_rev()
+    n = he.node_fwd()
+    n2 = he.rev().node_rev()
     # Fails here, in grid.modify_node
-    af.resample(n=n,anchor=anchor,scale=25,direction=1)
-    af.resample(n=n2,anchor=anchor,scale=25,direction=-1)
-    
+    af.resample(n=n, anchor=anchor, scale=25, direction=1)
+    af.resample(n=n2, anchor=anchor, scale=25, direction=-1)
+
+
 test_resample()
 
 

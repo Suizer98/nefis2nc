@@ -11,36 +11,38 @@ except:
     from collections import Iterable
 
 import logging
-log = logging.getLogger('stompy.live_dt')
+
+log = logging.getLogger("stompy.live_dt")
 
 import pdb
 
 import numpy as np
-from numpy.linalg import norm,solve
+from numpy.linalg import norm, solve
 
 from matplotlib import collections
 import matplotlib.pyplot as plt
 
 from .. import utils
 from ..utils import array_append
-from ..spatial import field,robust_predicates
-from . import orthomaker,trigrid,exact_delaunay
+from ..spatial import field, robust_predicates
+from . import orthomaker, trigrid, exact_delaunay
 
-def ray_intersection(p0,vec,pA,pB):
-    d1a = np.array([pA[0]-p0[0],pA[1]-p0[1]])
+
+def ray_intersection(p0, vec, pA, pB):
+    d1a = np.array([pA[0] - p0[0], pA[1] - p0[1]])
 
     # alpha * vec + beta * ab = d1a
     # | vec[0] ab[0]   | | alpha | = |  d1a[0]  |
     # | vec[1] ab[1]   | | beta  | = |  d1a[1]  |
 
-    A = np.array( [[vec[0],  pB[0] - pA[0]],
-                   [vec[1],  pB[1] - pA[1]]] )
-    alpha_beta = solve(A,d1a)
-    return p0 + alpha_beta[0]*np.asarray(vec)
+    A = np.array([[vec[0], pB[0] - pA[0]], [vec[1], pB[1] - pA[1]]])
+    alpha_beta = solve(A, d1a)
+    return p0 + alpha_beta[0] * np.asarray(vec)
 
 
 class MissingConstraint(Exception):
     pass
+
 
 def distance_left_of_line(pnt, qp1, qp2):
     # return the signed distance for where pnt is located left of
@@ -48,28 +50,32 @@ def distance_left_of_line(pnt, qp1, qp2):
     #  we don't necessarily get the real distance, but at least something
     #  with the right sign, and monotonicity
     vec = qp2 - qp1
-    
-    left_vec = np.array( [-vec[1],vec[0]] )
-    
-    return (pnt[0] - qp1[0])*left_vec[0] + (pnt[1]-qp1[1])*left_vec[1]
 
+    left_vec = np.array([-vec[1], vec[0]])
+
+    return (pnt[0] - qp1[0]) * left_vec[0] + (pnt[1] - qp1[1]) * left_vec[1]
 
 
 class LiveDtGridNull(orthomaker.OrthoMaker):
-    """ absolute minimum, do-nothing stand-in for LiveDtGrid implementations.
+    """absolute minimum, do-nothing stand-in for LiveDtGrid implementations.
     probably not useful, and definitely not complete
     """
+
     has_dt = 0
     pending_conflicts = []
 
     def hold(self):
         pass
+
     def release(self):
         pass
-    def delaunay_neighbors(self,n):
+
+    def delaunay_neighbors(self, n):
         return []
 
-LiveDtGrid=LiveDtGridNull # will be set to the "best" implementation below
+
+LiveDtGrid = LiveDtGridNull  # will be set to the "best" implementation below
+
 
 class LiveDtGridBase(orthomaker.OrthoMaker):
     """
@@ -84,7 +90,7 @@ class LiveDtGridBase(orthomaker.OrthoMaker):
     below.
 
     This mixin maintains the mapping between nodes in self, and
-    the vertices in the shadow Delaunay triangulation.  
+    the vertices in the shadow Delaunay triangulation.
 
     self.vh[n] maps a trigrid node n to the "handle" for a Delaunay
     vertex.
@@ -92,9 +98,10 @@ class LiveDtGridBase(orthomaker.OrthoMaker):
     self.vh_info[vh] provides the reverse mapping, from a Delaunay
     vertex handle to a node
     """
+
     has_dt = 1
     # if true, skips graph API handling
-    freeze=0 
+    freeze = 0
 
     # if true, stores up modified nodes and edges, and
     # updates all at once upon release
@@ -116,17 +123,18 @@ class LiveDtGridBase(orthomaker.OrthoMaker):
 
     # even though in some cases the vertex handle type is more like int32,
     # leave this as object so that None can be used as a special value.
-    vh_dtype='object' # used in allocating 
-    
-    def __init__(self,*args,**kwargs):
-        super(LiveDtGridBase,self).__init__(*args,**kwargs)
+    vh_dtype = "object"  # used in allocating
+
+    def __init__(self, *args, **kwargs):
+        super(LiveDtGridBase, self).__init__(*args, **kwargs)
 
         self.populate_dt()
 
     check_i = 0
+
     def check(self):
-        return 
-        print("    --checkplot %05i--"%self.check_i)
+        return
+        print("    --checkplot %05i--" % self.check_i)
 
         plt.figure(10)
         plt.clf()
@@ -135,80 +143,88 @@ class LiveDtGridBase(orthomaker.OrthoMaker):
             self.plot_nodes()
             plt.axis(self.default_clip)
 
-        plt.title("--checkplot %05i--"%self.check_i)
-        plt.savefig('tmp/dtframe%05i.png'%self.check_i)
+        plt.title("--checkplot %05i--" % self.check_i)
+        plt.savefig("tmp/dtframe%05i.png" % self.check_i)
         self.check_i += 1
 
         plt.close(10)
 
     def refresh_metadata(self):
-        """ Should be called when all internal state is changed outside
+        """Should be called when all internal state is changed outside
         the mechanisms of add_X, delete_X, move_X, etc.
         """
-        super(LiveDtGridBase,self).refresh_metadata()
+        super(LiveDtGridBase, self).refresh_metadata()
 
         self.populate_dt()
 
     def populate_dt(self):
-        """ Initialize a triangulation with all current edges and nodes.
-        """
+        """Initialize a triangulation with all current edges and nodes."""
         # print("populate_dt: top")
 
         self.dt_allocate()
-        self.vh = np.zeros( (self.Npoints(),), self.vh_dtype)
-        self.vh[:]=None # 0 isn't actually a good mark for unused.
-        
+        self.vh = np.zeros((self.Npoints(),), self.vh_dtype)
+        self.vh[:] = None  # 0 isn't actually a good mark for unused.
+
         # sometimes CGAL creates vertices automatically, which are detected by
         # having info == None
-        self.vh_info = defaultdict(lambda:None)
+        self.vh_info = defaultdict(lambda: None)
 
         # print("populate_dt: adding points")
         for n in range(self.Npoints()):
-            if n % 50000==0:
-                log.info("populate_dt: %d/%d"%(n,self.Npoints()))
+            if n % 50000 == 0:
+                log.info("populate_dt: %d/%d" % (n, self.Npoints()))
             # skip over deleted points:
-            if np.isfinite(self.points[n,0]):
+            if np.isfinite(self.points[n, 0]):
                 self.dt_insert(n)
-                
+
         # print("populate_dt: add constraints")
         for e in range(self.Nedges()):
-            if e % 50000==0:
-                log.info("populate_dt: %d/%d"%(e,self.Nedges()))
-            a,b = self.edges[e,:2]
-            if a>=0 and b>=0: # make sure we don't insert deleted edges
-                self.safe_insert_constraint(a,b)
+            if e % 50000 == 0:
+                log.info("populate_dt: %d/%d" % (e, self.Nedges()))
+            a, b = self.edges[e, :2]
+            if a >= 0 and b >= 0:  # make sure we don't insert deleted edges
+                self.safe_insert_constraint(a, b)
         # print("populate_dt: end")
 
-    def safe_insert_constraint(self,a,b):
-        """ adds a constraint to the DT, but does a few simple checks first
+    def safe_insert_constraint(self, a, b):
+        """adds a constraint to the DT, but does a few simple checks first
         if it's not safe, raise an Exception
         """
-        if a < 0 or b < 0 or a==b:
-            raise Exception("invalid node indices: %d %d"%(a,b))
+        if a < 0 or b < 0 or a == b:
+            raise Exception("invalid node indices: %d %d" % (a, b))
         if all(self.points[a] == self.points[b]):
-            raise Exception("invalid constraint: points[%d]=%s and points[%d]=%s are identical"%(a,self.points[a],
-                                                                                                 b,self.points[b]))
+            raise Exception(
+                "invalid constraint: points[%d]=%s and points[%d]=%s are identical"
+                % (a, self.points[a], b, self.points[b])
+            )
         if self.verbose > 2:
-            print("    Inserting constraint (populate_dt): %d %d  %s %s"%(a,b,self.vh[a],self.vh[b]))
-            print("      node A=%s   node B=%s"%(self.points[a],self.points[b]))
-            print("      A.point=%s  B.point=%s"%(self.vh[a].point(), self.vh[b].point()))
+            print(
+                "    Inserting constraint (populate_dt): %d %d  %s %s"
+                % (a, b, self.vh[a], self.vh[b])
+            )
+            print("      node A=%s   node B=%s" % (self.points[a], self.points[b]))
+            print(
+                "      A.point=%s  B.point=%s"
+                % (self.vh[a].point(), self.vh[b].point())
+            )
 
-        self.dt_insert_constraint(a,b)
+        self.dt_insert_constraint(a, b)
 
         # double check to make sure that it's actually in there...
-        found_it=0
+        found_it = 0
         for edge in self.dt_incident_constraints(self.vh[a]):
-            v1,v2 = edge.vertices()
-            if v1==self.vh[b] or v2==self.vh[b]:
+            v1, v2 = edge.vertices()
+            if v1 == self.vh[b] or v2 == self.vh[b]:
                 found_it = 1
                 break
         if not found_it:
             # we have a conflict - search from a to b
-            msg="Just tried to insert a constraint %d-%d (%s - %s), but it's not there!"%(a,b,
-                                                                                          self.points[a],
-                                                                                          self.points[b])
+            msg = (
+                "Just tried to insert a constraint %d-%d (%s - %s), but it's not there!"
+                % (a, b, self.points[a], self.points[b])
+            )
             raise MissingConstraint(msg)
-        
+
     ## Hold/release
     def hold(self):
         if self.holding == 0:
@@ -226,7 +242,7 @@ class LiveDtGridBase(orthomaker.OrthoMaker):
             # First, make sure that we have enough room for new nodes:
             while len(self.vh) < self.Npoints():
                 # This used to extend with 0, but None is a better option
-                self.vh = array_append(self.vh,None)
+                self.vh = array_append(self.vh, None)
 
             held_nodes = list(self.holding_nodes.keys())
 
@@ -236,13 +252,13 @@ class LiveDtGridBase(orthomaker.OrthoMaker):
                 # first, it was != 0.
                 # then it was "is not 0"
                 # but with exact_delaunay, 0 is a valid vertex handle.
-                if self.vh[n] is not None: # used to != 0
-                    self.dt_remove_constraints(self.vh[n]) 
-                    self.dt_remove(n) # that's correct, pass trigrid node index
+                if self.vh[n] is not None:  # used to != 0
+                    self.dt_remove_constraints(self.vh[n])
+                    self.dt_remove(n)  # that's correct, pass trigrid node index
 
             # Add back the ones that are currently valid
             for n in held_nodes:
-                if np.isfinite(self.points[n,0]):
+                if np.isfinite(self.points[n, 0]):
                     self.dt_insert(n)
 
             # Add back edges for each one
@@ -255,17 +271,17 @@ class LiveDtGridBase(orthomaker.OrthoMaker):
             while len(self.edges_to_release) > 0:
                 e = self.edges_to_release.pop()
                 # call dt_add_edge to get all of the conflicting-edge-detecting
-                # functionality.  
+                # functionality.
                 self.dt_add_edge(e)
 
             self.edges_to_release = None
-            self.holding_nodes=0
+            self.holding_nodes = 0
 
         return self.holding
 
-    def dt_update(self,n):
+    def dt_update(self, n):
         if self.verbose > 2:
-            print("    dt_update TOP: %d"%n)
+            print("    dt_update TOP: %d" % n)
             self.check()
 
         # have to remove any old constraints first:
@@ -276,31 +292,36 @@ class LiveDtGridBase(orthomaker.OrthoMaker):
         # of confusing the iterator
         for edge in self.dt_incident_constraints(self.vh[n]):
             n_removed += 1
-            v1,v2 = edge.vertices()
+            v1, v2 = edge.vertices()
 
             vi1 = self.vh_info[v1]
             vi2 = self.vh_info[v2]
 
-            to_remove.append( (edge, vi1, vi2) )
+            to_remove.append((edge, vi1, vi2))
             if self.verbose > 2:
                 # weird stuff is happening in here, so print out some extra
                 # info
-                print("    dt_update: found old constraint %s-%s"%(vi1,vi2))
+                print("    dt_update: found old constraint %s-%s" % (vi1, vi2))
 
         if n_removed != len(self.pnt2edges(n)):
-            print("    WARNING: was going to remove them, but n_removed=%d, but pnt2edges shows"%n_removed)
+            print(
+                "    WARNING: was going to remove them, but n_removed=%d, but pnt2edges shows"
+                % n_removed
+            )
             # How many of this point's edges are in the queue to be added?
             count_unreleased = 0
             if self.edges_to_release:
                 for e in self.pnt2edges(n):
                     if e in self.edges_to_release:
                         count_unreleased += 1
-            if n_removed + count_unreleased != len(self.pnt2edges(n)):    
-                print(self.edges[self.pnt2edges(n),:2])
-                print("Even after counting edges that are queued for release, still fails.")
+            if n_removed + count_unreleased != len(self.pnt2edges(n)):
+                print(self.edges[self.pnt2edges(n), :2])
+                print(
+                    "Even after counting edges that are queued for release, still fails."
+                )
                 raise Exception("Something terrible happened trying to update a node")
 
-        for edge,a,b in to_remove:
+        for edge, a, b in to_remove:
             self.dt_remove_constrained_edge(edge)
 
         self.dt_remove(n)
@@ -310,171 +331,177 @@ class LiveDtGridBase(orthomaker.OrthoMaker):
         # of a release, pnt2edges() will not necessarily give the same edges as
         # constraints
         all_pairs = []
-        for edge,a,b in to_remove:
-            all_pairs.append( (a,b) )
+        for edge, a, b in to_remove:
+            all_pairs.append((a, b))
 
-            self.safe_insert_constraint(a,b)
+            self.safe_insert_constraint(a, b)
             n_removed -= 1
 
         if n_removed != 0:
-            print("    WARNING: in updating node %d, removed-added=%d"%(n,n_removed))
-            print("    Inserted edges were ",all_pairs)
+            print("    WARNING: in updating node %d, removed-added=%d" % (n, n_removed))
+            print("    Inserted edges were ", all_pairs)
             raise Exception("why does this happen?")
 
         if self.verbose > 2:
-            print("    dt_update END: %d"%n)
+            print("    dt_update END: %d" % n)
             self.check()
 
-    def dt_add_edge(self,e):
-        """ Add the edge, indexed by integer e and assumed to exist in the grid,
+    def dt_add_edge(self, e):
+        """Add the edge, indexed by integer e and assumed to exist in the grid,
         to the Delaunay triangulation.  This method is a bit sneaky, and in dire
         situations tries to adjust the geometry to allow an otherwise invalid
-        edge to be inserted.  
+        edge to be inserted.
 
         Not a good design, but this is old code.
         """
-        a,b = self.edges[e,:2]
+        a, b = self.edges[e, :2]
 
-        #-#-# Try to anticipate unsafe connections 
-        for i in range(3): # try a few times to adjust the conflicting nodes
-            constr_edges = self.check_line_is_clear(a,b)
-            if len(constr_edges)>0:
-                print("--=-=-=-=-=-= Inserting this edge %d-%d will cause an intersection -=-=-=-=-=-=-=--"%(a,b))
-                for v1,v2 in constr_edges:
+        # -#-# Try to anticipate unsafe connections
+        for i in range(3):  # try a few times to adjust the conflicting nodes
+            constr_edges = self.check_line_is_clear(a, b)
+            if len(constr_edges) > 0:
+                print(
+                    "--=-=-=-=-=-= Inserting this edge %d-%d will cause an intersection -=-=-=-=-=-=-=--"
+                    % (a, b)
+                )
+                for v1, v2 in constr_edges:
                     # use %s formats as values could be None
-                    print("  intersects constrained edge: %s - %s"%(self.vh_info[v1],self.vh_info[v2]))
+                    print(
+                        "  intersects constrained edge: %s - %s"
+                        % (self.vh_info[v1], self.vh_info[v2])
+                    )
 
                 if self.verbose > 1:
-                    if i==0:
+                    if i == 0:
                         self.plot(plot_title="About to prepare_conflicting_edges")
-                        plt.plot(self.points[[a,b],0],
-                                 self.points[[a,b],1],'m')
+                        plt.plot(self.points[[a, b], 0], self.points[[a, b], 1], "m")
 
                 # Debugging:
                 # raise Exception("Stopping before trying to fix conflicting edges")
-                self.prepare_conflicting_edges(e,constr_edges)
+                self.prepare_conflicting_edges(e, constr_edges)
             else:
                 break
-        #-#-#
+        # -#-#
 
-        self.safe_insert_constraint(a,b)
+        self.safe_insert_constraint(a, b)
 
-        if a>b:
-            a,b=b,a
+        if a > b:
+            a, b = b, a
 
         if self.verbose > 2:
-            print("    dt_add_edge: adding constraint %d->%d"%(a,b))
+            print("    dt_add_edge: adding constraint %d->%d" % (a, b))
             self.check()
 
-    def prepare_conflicting_edges(self,e,constr_edges):
+    def prepare_conflicting_edges(self, e, constr_edges):
         """
         If an edge to be inserted is not valid, try to adjust one or more nodes
         in a small way to make it clear.  This approach is clearly stepping outside
-        the bounds of good program flow. 
+        the bounds of good program flow.
         """
         # First figure out which side is "open"
         # We should only be called when the data in self.edges has already
         # been taken care of, so it should be safe to just consult our cell ids.
-        a,b = self.edges[e,:2]
+        a, b = self.edges[e, :2]
 
         # arrange for a -> b to have the open side to its right
-        if self.edges[e,3] >= 0 and self.edges[e,4] >= 0:
+        if self.edges[e, 3] >= 0 and self.edges[e, 4] >= 0:
             print("prepare_conflicting_edges: both sides are closed!")
             return
-        if self.edges[e,3] == -1 and self.edges[e,4] != -1:
-            a,b = b,a
-        elif self.edges[e,4] == -1:
+        if self.edges[e, 3] == -1 and self.edges[e, 4] != -1:
+            a, b = b, a
+        elif self.edges[e, 4] == -1:
             pass
-        elif self.edges[e,3] == -2 and self.edges[e,4] != -2:
-            a,b = b,a
+        elif self.edges[e, 3] == -2 and self.edges[e, 4] != -2:
+            a, b = b, a
         # otherwise it's already in the correct orientation
 
-        print("prepare_conflicting_edges: proceeding for edge %d-%d"%(a,b))
+        print("prepare_conflicting_edges: proceeding for edge %d-%d" % (a, b))
 
         AB = self.points[b] - self.points[a]
-        open_dir = np.array( [AB[1],-AB[0]] )
-        mag = np.sqrt(AB[0]**2+AB[1]**2)
+        open_dir = np.array([AB[1], -AB[0]])
+        mag = np.sqrt(AB[0] ** 2 + AB[1] ** 2)
         AB /= mag
         open_dir /= mag
 
-        to_move = [] # node index for nodes that need to be moved.
+        to_move = []  # node index for nodes that need to be moved.
 
         for cgal_edge in constr_edges:
-            vh_c,vh_d = cgal_edge
+            vh_c, vh_d = cgal_edge
 
             c = self.vh_info[vh_c]
             d = self.vh_info[vh_d]
             if c is None:
-                print("No node data for conflicting vertex %s"%vh_c)
+                print("No node data for conflicting vertex %s" % vh_c)
                 continue
             if d is None:
-                print("No node data for conflicting vertex %s"%vh_d)
+                print("No node data for conflicting vertex %s" % vh_d)
                 continue
 
             # 2. which one is on the closed side?
-            c_beta = np.dot( self.points[c] - self.points[a],
-                             open_dir)
-            d_beta = np.dot( self.points[d] - self.points[a],
-                             open_dir)
+            c_beta = np.dot(self.points[c] - self.points[a], open_dir)
+            d_beta = np.dot(self.points[d] - self.points[a], open_dir)
             if c_beta < 0 and d_beta >= 0:
                 to_move.append(c)
             elif d_beta < 0 and c_beta >= 0:
                 to_move.append(d)
             else:
-                print("Neither node in conflicting edge appears to be on the closed side")
+                print(
+                    "Neither node in conflicting edge appears to be on the closed side"
+                )
 
         to_move = np.unique(to_move)
         eps = mag / 50.0
 
         for n in to_move:
-            beta = np.dot( self.points[n] - self.points[a], open_dir)
+            beta = np.dot(self.points[n] - self.points[a], open_dir)
             if beta >= 0:
                 raise Exception("Only nodes with beta<0 should be in this list!")
-            new_point = self.points[n] - (beta-eps)*open_dir
-            print("prepare_conflicting_edges: Moving node %d to %s"%(n,new_point))
-            self.move_node(n,new_point)
+            new_point = self.points[n] - (beta - eps) * open_dir
+            print("prepare_conflicting_edges: Moving node %d to %s" % (n, new_point))
+            self.move_node(n, new_point)
 
-    def dt_remove_edge(self,e,nodes=None):
-        """  Remove the given edge from the triangulation.  In cases
+    def dt_remove_edge(self, e, nodes=None):
+        """Remove the given edge from the triangulation.  In cases
         where the edge e has already been updated with different nodes,
         pass in nodes as [a,b] to remove the edge as it was.
         """
         if nodes is not None:
-            a,b = nodes
+            a, b = nodes
         else:
-            a,b = self.edges[e,:2]
+            a, b = self.edges[e, :2]
 
-        #-# DBG
-        if a>b:
-            a,b=b,a
+        # -# DBG
+        if a > b:
+            a, b = b, a
         if self.verbose > 2:
-            print("    remove constraint %d->%d"%(a,b))
+            print("    remove constraint %d->%d" % (a, b))
             self.check()
-        #-# /DBG
+        # -# /DBG
 
         # have to figure out the face,index for this edge
         found_edge = 0
 
-        for edge in self.dt_incident_constraints(self.vh[a]): 
-            v1,v2 = edge.vertices()
+        for edge in self.dt_incident_constraints(self.vh[a]):
+            v1, v2 = edge.vertices()
             if self.vh[b] == v1 or self.vh[b] == v2:
                 self.dt_remove_constrained_edge(edge)
                 return
-        raise MissingConstraint("Tried to remove edge %i, but it wasn't in the constrained DT"%e)
+        raise MissingConstraint(
+            "Tried to remove edge %i, but it wasn't in the constrained DT" % e
+        )
 
+    # -#-# API for adding/moving/deleting
 
-    #-#-# API for adding/moving/deleting
-
-    #-# NODES
-    def add_node(self,P):
-        n = super(LiveDtGridBase,self).add_node(P)
+    # -# NODES
+    def add_node(self, P):
+        n = super(LiveDtGridBase, self).add_node(P)
 
         if self.freeze:
             pass
         elif self.holding:
-            self.holding_nodes[n] = 'add_node'
+            self.holding_nodes[n] = "add_node"
         else:
-            self.vh = array_append(self.vh,None)
+            self.vh = array_append(self.vh, None)
             self.dt_insert(n)
             # tricky - a new node may interrupt some existing
             # constraint, but when the node is removed the
@@ -482,80 +509,82 @@ class LiveDtGridBase(orthomaker.OrthoMaker):
             # explicitly -
             interrupted_edge = []
             for edge in self.dt_incident_constraints(self.vh[n]):
-                a,b = edge.vertices()
+                a, b = edge.vertices()
                 if self.vh_info[a] != n:
                     interrupted_edge.append(self.vh_info[a])
                 else:
                     interrupted_edge.append(self.vh_info[b])
             if len(interrupted_edge):
-                self.push_op(self.uninterrupt_constraint,interrupted_edge)
+                self.push_op(self.uninterrupt_constraint, interrupted_edge)
 
         return n
 
-    def uninterrupt_constraint(self,ab):
+    def uninterrupt_constraint(self, ab):
         print("Uninterrupting a constraint. Yes!")
-        self.safe_insert_constraint(ab[0],ab[1])
+        self.safe_insert_constraint(ab[0], ab[1])
 
     def unmodify_edge(self, e, old_data):
-        """ a bit unsure of this...  I don't know exactly where this
+        """a bit unsure of this...  I don't know exactly where this
         gets done the first time
         """
-        a,b = self.edges[e,:2]
-        n = super(LiveDtGridBase,self).unmodify_edge(e,old_data)
+        a, b = self.edges[e, :2]
+        n = super(LiveDtGridBase, self).unmodify_edge(e, old_data)
 
-        if a!=old_data[0] or b!=old_data[1]:
+        if a != old_data[0] or b != old_data[1]:
             print("unmodifying live_dt edge")
-            self.safe_insert_constraint(old_data[0],old_data[1])
+            self.safe_insert_constraint(old_data[0], old_data[1])
 
-    def unadd_node(self,old_length):
+    def unadd_node(self, old_length):
         if self.freeze:
             pass
         elif self.holding:
-            for i in range(old_length,len(self.points)):
-                self.holding_nodes[i] = 'unadd'
+            for i in range(old_length, len(self.points)):
+                self.holding_nodes[i] = "unadd"
         else:
-            for i in range(old_length,len(self.points)):
+            for i in range(old_length, len(self.points)):
                 self.dt_remove(i)
             self.vh = self.vh[:old_length]
 
-        super(LiveDtGridBase,self).unadd_node(old_length)
+        super(LiveDtGridBase, self).unadd_node(old_length)
 
         if not (self.freeze or self.holding):
-            print("HEY - this would be a good time to refresh the neighboring constraints")
+            print(
+                "HEY - this would be a good time to refresh the neighboring constraints"
+            )
 
-    def delete_node(self,i,*args,**kwargs):
+    def delete_node(self, i, *args, **kwargs):
         # there is a keyword argument, remove_edges
         # does that need to be interpreted here?
         if self.freeze:
             pass
         elif self.holding:
-            self.holding_nodes[i] = 'delete_node'
+            self.holding_nodes[i] = "delete_node"
 
-        super(LiveDtGridBase,self).delete_node(i,*args,**kwargs)
+        super(LiveDtGridBase, self).delete_node(i, *args, **kwargs)
 
         if not self.freeze and not self.holding:
-            self.dt_remove( i )
+            self.dt_remove(i)
 
-    def undelete_node(self,i,p):
-        super(LiveDtGridBase,self).undelete_node(i,p)
+    def undelete_node(self, i, p):
+        super(LiveDtGridBase, self).undelete_node(i, p)
         if self.freeze:
             pass
         elif self.holding:
-            self.holding_nodes[i] = 'undelete'
+            self.holding_nodes[i] = "undelete"
         else:
             self.dt_insert(i)
 
-    def unmove_node(self,i,orig_val):
-        super(LiveDtGridBase,self).unmove_node(i,orig_val)
+    def unmove_node(self, i, orig_val):
+        super(LiveDtGridBase, self).unmove_node(i, orig_val)
         if self.freeze:
             pass
         elif self.holding:
-            self.holding_nodes[i] = 'unmove'
+            self.holding_nodes[i] = "unmove"
         else:
             self.dt_update(i)
 
-    def move_node(self,i,new_pnt,avoid_conflicts=True):
-        """ avoid_conflicts: if the new location would cause a
+    def move_node(self, i, new_pnt, avoid_conflicts=True):
+        """avoid_conflicts: if the new location would cause a
         self-intersection, don't move it so far...
 
         if the location is modified, return the actual location, otherwise
@@ -568,13 +597,13 @@ class LiveDtGridBase(orthomaker.OrthoMaker):
 
             # See if the location will be okay -
             to_remove = []
-            nbrs = [] # neighbor nodes, based only on constrained edges
+            nbrs = []  # neighbor nodes, based only on constrained edges
             for edge in self.dt_incident_constraints(self.vh[i]):
-                v1,v2 = edge.vertices()
+                v1, v2 = edge.vertices()
                 vi1 = self.vh_info[v1]
                 vi2 = self.vh_info[v2]
 
-                to_remove.append( (edge, vi1, vi2) )
+                to_remove.append((edge, vi1, vi2))
                 if vi1 == i:
                     nbrs.append(vi2)
                 else:
@@ -586,35 +615,37 @@ class LiveDtGridBase(orthomaker.OrthoMaker):
                 # this was a warning, but investigating...
                 # HERE: And now test_sine_sine is failing here.
                 pdb.set_trace()
-                raise Exception("WARNING: move_node len(DT constraints) != len(pnt2edges(i))")
+                raise Exception(
+                    "WARNING: move_node len(DT constraints) != len(pnt2edges(i))"
+                )
 
-            for edge,a,b in to_remove:
+            for edge, a, b in to_remove:
                 self.dt_remove_constrained_edge(edge)
 
             self.dt_remove(i)
 
             # With the old edges and vertex out of the way, make sure the new location
             # is safe, and adjust necessary
-            new_pnt = self.adjust_move_node(i,new_pnt,nbrs)
+            new_pnt = self.adjust_move_node(i, new_pnt, nbrs)
 
-        super(LiveDtGridBase,self).move_node(i,new_pnt)
+        super(LiveDtGridBase, self).move_node(i, new_pnt)
 
         if self.freeze:
             pass
         elif self.holding:
-            self.holding_nodes[i] = 'move'
+            self.holding_nodes[i] = "move"
         else:
             # put the node back in, and add back any edges that we removed.
             # NB: safer to add only the constraints that were there before, since it
             #  could be that the DT is not perfectly in sync with self.edges[]
             self.dt_insert(i)
-            for edge,a,b in to_remove:
-                self.safe_insert_constraint(a,b)
+            for edge, a, b in to_remove:
+                self.safe_insert_constraint(a, b)
 
         return new_pnt
 
-    def adjust_move_node(self,i,new_pnt,nbrs):
-        """ Check if it's okay to move the node i to the given point, and
+    def adjust_move_node(self, i, new_pnt, nbrs):
+        """Check if it's okay to move the node i to the given point, and
         if needed, return a different new_pnt location that won't make an
         intersection
 
@@ -624,82 +655,83 @@ class LiveDtGridBase(orthomaker.OrthoMaker):
         """
 
         # HERE -- not compatible with pure python code.
-        
+
         # find existing constrained edges
         # for each constrained edge:
         #   will the updated edge still be valid?
         #   if not, update new_pnt to be halfway between the old and the new,
         #      and loop again.
 
-        for shorten in range(15): # maximum number of shortenings allowed
+        for shorten in range(15):  # maximum number of shortenings allowed
             all_good = True
 
             # Create a probe vertex so we can call check_line_is_clear()
             # sort of winging it here for a measure of close things are.
-            if abs(self.points[i] - new_pnt).sum() / (1.0+abs(new_pnt).max()) < 1e-8:
+            if abs(self.points[i] - new_pnt).sum() / (1.0 + abs(new_pnt).max()) < 1e-8:
                 log.warning("adjust_move_node: danger of roundoff issues")
                 all_good = False
                 break
 
-            all_good=self.check_line_is_clear_batch(p1=new_pnt,n2=nbrs)
+            all_good = self.check_line_is_clear_batch(p1=new_pnt, n2=nbrs)
             if all_good:
                 break
             else:
-                new_pnt = 0.5*(self.points[i]+new_pnt)
-                log.debug('adjust_move_node: adjusting') 
+                new_pnt = 0.5 * (self.points[i] + new_pnt)
+                log.debug("adjust_move_node: adjusting")
         if all_good:
             return new_pnt
         else:
             return self.points[i]
 
-
     ## EDGES
-    def add_edge(self,nodeA,nodeB,*args,**kwargs):
-        e = super(LiveDtGridBase,self).add_edge(nodeA,nodeB,*args,**kwargs)
+    def add_edge(self, nodeA, nodeB, *args, **kwargs):
+        e = super(LiveDtGridBase, self).add_edge(nodeA, nodeB, *args, **kwargs)
         if self.freeze:
             pass
         elif self.holding:
-            self.holding_nodes[ self.edges[e,0] ] ='add_edge'
-            self.holding_nodes[ self.edges[e,1] ] ='add_edge'
+            self.holding_nodes[self.edges[e, 0]] = "add_edge"
+            self.holding_nodes[self.edges[e, 1]] = "add_edge"
         else:
             self.dt_add_edge(e)
         return e
-    def unadd_edge(self,old_length):
+
+    def unadd_edge(self, old_length):
         if self.freeze:
             pass
         elif self.holding:
-            for e in range(old_length,len(self.edges)):
-                self.holding_nodes[ self.edges[e,0] ] ='unadd_edge'
-                self.holding_nodes[ self.edges[e,1] ] ='unadd_edge'
+            for e in range(old_length, len(self.edges)):
+                self.holding_nodes[self.edges[e, 0]] = "unadd_edge"
+                self.holding_nodes[self.edges[e, 1]] = "unadd_edge"
         else:
-            for e in range(old_length,len(self.edges)):
+            for e in range(old_length, len(self.edges)):
                 self.dt_remove_edge(e)
 
-        super(LiveDtGridBase,self).unadd_edge(old_length)
-    def delete_edge(self,e,*args,**kwargs):
+        super(LiveDtGridBase, self).unadd_edge(old_length)
+
+    def delete_edge(self, e, *args, **kwargs):
         if self.freeze:
             pass
         elif self.holding:
-            self.holding_nodes[ self.edges[e,0] ] = 'delete_edge'
-            self.holding_nodes[ self.edges[e,1] ] = 'delete_edge'
+            self.holding_nodes[self.edges[e, 0]] = "delete_edge"
+            self.holding_nodes[self.edges[e, 1]] = "delete_edge"
         else:
             self.dt_remove_edge(e)
 
-        super(LiveDtGridBase,self).delete_edge(e,*args,**kwargs)
+        super(LiveDtGridBase, self).delete_edge(e, *args, **kwargs)
 
-    def undelete_edge(self,e,*args,**kwargs):
-        super(LiveDtGridBase,self).undelete_edge(e,*args,**kwargs)
+    def undelete_edge(self, e, *args, **kwargs):
+        super(LiveDtGridBase, self).undelete_edge(e, *args, **kwargs)
         if self.freeze:
             pass
         elif self.holding:
-            self.holding_nodes[ self.edges[e,0] ] = 'undelete_edge'
-            self.holding_nodes[ self.edges[e,1] ] = 'undelete_edge'
+            self.holding_nodes[self.edges[e, 0]] = "undelete_edge"
+            self.holding_nodes[self.edges[e, 1]] = "undelete_edge"
         else:
             self.dt_add_edge(e)
 
-    def merge_edges(self,e1,e2):
+    def merge_edges(self, e1, e2):
         if self.verbose > 1:
-            print("    live_dt: merge edges %d %d"%(e1,e2))
+            print("    live_dt: merge edges %d %d" % (e1, e2))
         # the tricky thing here is that we don't know which of
         # these edges will be removed by merge_edges - one
         # of them will get deleted, and then deleted by our
@@ -707,15 +739,15 @@ class LiveDtGridBase(orthomaker.OrthoMaker):
         # the other one will get modified, so by the time we get
         # control again after trigrid, we won't know what to update
         # so - save the nodes...
-        saved_nodes = self.edges[ [e1,e2],:2]
+        saved_nodes = self.edges[[e1, e2], :2]
 
-        remaining = super(LiveDtGridBase,self).merge_edges(e1,e2)
+        remaining = super(LiveDtGridBase, self).merge_edges(e1, e2)
 
         if self.freeze:
             pass
         elif self.holding:
             for n in saved_nodes.ravel():
-                self.holding_nodes[n] = 'merge_edges'
+                self.holding_nodes[n] = "merge_edges"
         else:
             if remaining == e1:
                 ab = saved_nodes[0]
@@ -725,7 +757,7 @@ class LiveDtGridBase(orthomaker.OrthoMaker):
             # the one that is *not* remaining has already been deleted
             # just update the other one.
             try:
-                self.dt_remove_edge(remaining,nodes=ab)
+                self.dt_remove_edge(remaining, nodes=ab)
             except MissingConstraint:
                 print("    on merge_edges, may have an intervener")
                 raise
@@ -733,7 +765,7 @@ class LiveDtGridBase(orthomaker.OrthoMaker):
             self.dt_add_edge(remaining)
         return remaining
 
-    def unmerge_edges(self,e1,e2,*args,**kwargs):
+    def unmerge_edges(self, e1, e2, *args, **kwargs):
         check_dt_after = False
         if self.freeze:
             pass
@@ -746,40 +778,49 @@ class LiveDtGridBase(orthomaker.OrthoMaker):
             try:
                 self.dt_remove_edge(e1)
             except MissingConstraint:
-                print(" got a missing constraint on merge edges - will verify that it's okay")
+                print(
+                    " got a missing constraint on merge edges - will verify that it's okay"
+                )
                 check_dt_after = True
-        #print "    after pre-emptive remove_edge"
+        # print "    after pre-emptive remove_edge"
 
-        super(LiveDtGridBase,self).unmerge_edges(e1,e2,*args,**kwargs)
-        #print "    after call to super()"
+        super(LiveDtGridBase, self).unmerge_edges(e1, e2, *args, **kwargs)
+        # print "    after call to super()"
         if self.freeze:
             pass
         elif self.holding:
-            n1,n2 = self.edges[e1,:2]
-            n3,n4 = self.edges[e2,:2]
-            for n in [n1,n2,n3,n4]:
-                self.holding_nodes[ n ] = 'unmerge_edges'
+            n1, n2 = self.edges[e1, :2]
+            n3, n4 = self.edges[e2, :2]
+            for n in [n1, n2, n3, n4]:
+                self.holding_nodes[n] = "unmerge_edges"
         else:
             if check_dt_after:
-                AB = self.edges[e1,:2]
-                BC  = self.edges[e2,:2]
-                B = np.intersect1d(AB,BC)[0]
-                A = np.setdiff1d(AB,B)[0]
-                C = np.setdiff1d(BC,B)[0]
-                print("while unmerging edges, a constraint was pre-emptively created, but will verify that now %d-%d-%d."%(A,B,C))
+                AB = self.edges[e1, :2]
+                BC = self.edges[e2, :2]
+                B = np.intersect1d(AB, BC)[0]
+                A = np.setdiff1d(AB, B)[0]
+                C = np.setdiff1d(BC, B)[0]
+                print(
+                    "while unmerging edges, a constraint was pre-emptively created, but will verify that now %d-%d-%d."
+                    % (A, B, C)
+                )
 
                 for edge in self.dt_incident_constraints(self.vh[B]):
-                    v1,v2 = edge.vertices()
+                    v1, v2 = edge.vertices()
                     if self.vh_info[v1] == A or self.vh_info[v2] == A:
                         A = None
                     elif self.vh_info[v1] == B or self.vh_info[v2] == B:
                         B = None
                     else:
-                        print("while unmerging edge, the middle point has another constrained DT neighbor - surprising...")
+                        print(
+                            "while unmerging edge, the middle point has another constrained DT neighbor - surprising..."
+                        )
                 if A is not None or B is not None:
-                    raise MissingConstraint("Failed to verify that implicit constraint was there")
+                    raise MissingConstraint(
+                        "Failed to verify that implicit constraint was there"
+                    )
             else:
-                #print "    adding reverted edge e1 and e2"
+                # print "    adding reverted edge e1 and e2"
                 self.dt_add_edge(e1)
                 # even though trigrid.merge_edges() calls delete_edge()
                 # on e2, it doesn't register an undelete_edge() b/c
@@ -788,33 +829,38 @@ class LiveDtGridBase(orthomaker.OrthoMaker):
 
     # def unsplit_edge(...): # not supported by trigrid
 
-    def split_edge(self,nodeA,nodeB,nodeC):
-        """ per trigrid updates, nodeB may be a node index or a tuple (coords, **add_node_opts)
-        """
+    def split_edge(self, nodeA, nodeB, nodeC):
+        """per trigrid updates, nodeB may be a node index or a tuple (coords, **add_node_opts)"""
         if self.freeze:
             pass
         elif self.holding:
-            self.holding_nodes[nodeA] = 'split_edge'
-            if not isinstance(nodeB,Iterable):
-                self.holding_nodes[nodeB] = 'split_edge'
-            self.holding_nodes[nodeC] = 'split_edge'
+            self.holding_nodes[nodeA] = "split_edge"
+            if not isinstance(nodeB, Iterable):
+                self.holding_nodes[nodeB] = "split_edge"
+            self.holding_nodes[nodeC] = "split_edge"
         else:
             if self.verbose > 2:
-                print("    split_edge: %d %d %d"%(nodeA,nodeB,nodeC))
-            e1 = self.find_edge([nodeA,nodeC])
+                print("    split_edge: %d %d %d" % (nodeA, nodeB, nodeC))
+            e1 = self.find_edge([nodeA, nodeC])
             try:
                 self.dt_remove_edge(e1)
             except MissingConstraint:
-                if isinstance(nodeB,Iterable):
-                    print("    got a missing constraint on split edge, and node has not been created!")
+                if isinstance(nodeB, Iterable):
+                    print(
+                        "    got a missing constraint on split edge, and node has not been created!"
+                    )
                     raise
                 else:
-                    print("    got a missing constraint on split edge, but maybe the edge has already been split")
-                    self.dt_remove_edge(e1,[nodeA,nodeB])
-                    self.dt_remove_edge(e1,[nodeB,nodeC])
-                    print("    Excellent.  The middle node had become part of the constraint")
+                    print(
+                        "    got a missing constraint on split edge, but maybe the edge has already been split"
+                    )
+                    self.dt_remove_edge(e1, [nodeA, nodeB])
+                    self.dt_remove_edge(e1, [nodeB, nodeC])
+                    print(
+                        "    Excellent.  The middle node had become part of the constraint"
+                    )
 
-        e2 = super(LiveDtGridBase,self).split_edge(nodeA,nodeB,nodeC)
+        e2 = super(LiveDtGridBase, self).split_edge(nodeA, nodeB, nodeC)
 
         if self.freeze:
             pass
@@ -825,12 +871,12 @@ class LiveDtGridBase(orthomaker.OrthoMaker):
             self.dt_add_edge(e2)
         return e2
 
-    def delete_node_and_merge(self,n):
+    def delete_node_and_merge(self, n):
         if self.freeze:
-            return super(LiveDtGridBase,self).delete_node_and_merge(n)
+            return super(LiveDtGridBase, self).delete_node_and_merge(n)
 
         if self.holding:
-            self.holding_nodes[n] = 'delete_node_and_merge'
+            self.holding_nodes[n] = "delete_node_and_merge"
         else:
             # remove any constraints going to n -
             self.dt_remove_constraints(self.vh[n])
@@ -841,14 +887,14 @@ class LiveDtGridBase(orthomaker.OrthoMaker):
         # constraint, which will fail if the middle node is collinear with
         # the outside nodes.  so freeze LiveDT updates, then here we clean up
         self.freeze = 1
-        new_edge = super(LiveDtGridBase,self).delete_node_and_merge(n)
+        new_edge = super(LiveDtGridBase, self).delete_node_and_merge(n)
         if self.verbose > 2:
-            print("    Got new_edge=%s from trigrid.delete_node_and_merge"%new_edge)
-        self.freeze=0
+            print("    Got new_edge=%s from trigrid.delete_node_and_merge" % new_edge)
+        self.freeze = 0
 
         if self.holding:
-            for n in self.edges[new_edge,:2]:
-                self.holding_nodes[n] = 'delete_node_and_merge'
+            for n in self.edges[new_edge, :2]:
+                self.holding_nodes[n] = "delete_node_and_merge"
         else:
             # while frozen we missed a merge_edges and a delete node.
             # we just want to do them in the opposite order of what trigrid does.
@@ -857,28 +903,28 @@ class LiveDtGridBase(orthomaker.OrthoMaker):
         return new_edge
 
     def renumber(self):
-        mappings = super(LiveDtGridBase,self).renumber()
+        mappings = super(LiveDtGridBase, self).renumber()
 
-        self.vh = self.vh[ mappings['valid_nodes'] ]
+        self.vh = self.vh[mappings["valid_nodes"]]
 
         for i in range(len(self.vh)):
             self.vh_info[self.vh[i]] = i
 
         return mappings
-        
+
     def dt_interior_cells(self):
         """
         Only valid for a triangulation where all nodes lie on
         the boundary.  there will be some
         cells which fall inside the domain, others outside the
         domain.
-        returns cells which are properly inside the domain as 
-        triples of nodes 
+        returns cells which are properly inside the domain as
+        triples of nodes
         """
         log.info("Finding interior cells from full Delaunay Triangulation")
         interior_cells = []
 
-        for a,b,c in self.dt_cell_node_iter():
+        for a, b, c in self.dt_cell_node_iter():
             # going to be slow...
             # How to test whether this face is internal:
             #  Arbitrarily choose a vertex: a
@@ -887,31 +933,29 @@ class LiveDtGridBase(orthomaker.OrthoMaker):
             internal = 0
             for elt in self.all_iters_for_node(a):
                 d = self.points[elt.nxt.data] - self.points[a]
-                theta_afwd = np.arctan2(d[1],d[0])
+                theta_afwd = np.arctan2(d[1], d[0])
                 d = self.points[b] - self.points[a]
-                theta_ab   = np.arctan2(d[1],d[0])
+                theta_ab = np.arctan2(d[1], d[0])
                 d = self.points[elt.prv.data] - self.points[a]
-                theta_aprv = np.arctan2(d[1],d[0])
+                theta_aprv = np.arctan2(d[1], d[0])
 
-                dtheta_b = (theta_ab - theta_afwd) % (2*np.pi)
-                dtheta_elt = (theta_aprv - theta_afwd) % (2*np.pi)
+                dtheta_b = (theta_ab - theta_afwd) % (2 * np.pi)
+                dtheta_elt = (theta_aprv - theta_afwd) % (2 * np.pi)
 
                 # if b==elt.nxt.data, then dtheta_b==0.0 - all good
                 if dtheta_b >= 0 and dtheta_b < dtheta_elt:
                     internal = 1
                     break
             if internal:
-                interior_cells.append( [a,b,c] )
+                interior_cells.append([a, b, c])
 
         cells = np.array(interior_cells)
         return cells
 
-
-    
     ## DT-based "smoothing"
     # First, make sure the boundary is sufficiently sampled
-    def subdivide(self,min_edge_length=1.0,edge_ids=None):
-        """ Like medial_axis::subdivide_iterate -
+    def subdivide(self, min_edge_length=1.0, edge_ids=None):
+        """Like medial_axis::subdivide_iterate -
         Add nodes along the boundary as needed to ensure that the boundary
         is well represented in channels
 
@@ -936,7 +980,7 @@ class LiveDtGridBase(orthomaker.OrthoMaker):
             print("Considering all edges for subdividing")
             edge_ids = list(range(self.Nedges()))
         else:
-            print("Considering only %d supplied edges for subdividing"%len(edge_ids))
+            print("Considering only %d supplied edges for subdividing" % len(edge_ids))
 
         to_subdivide = []
 
@@ -945,37 +989,45 @@ class LiveDtGridBase(orthomaker.OrthoMaker):
         neighbors_of_subdivide = {}
 
         print("Choosing edges to subdivide")
-        for ni,i in enumerate(edge_ids):   # range(self.Nedges()):
-            if ni%500==0:
-                log.debug('.')
+        for ni, i in enumerate(edge_ids):  # range(self.Nedges()):
+            if ni % 500 == 0:
+                log.debug(".")
 
-            if self.edges[i,0] == -37:
-                continue # edge has been deleted
+            if self.edges[i, 0] == -37:
+                continue  # edge has been deleted
             # this only works when one side is unpaved and the other boundary -
-            if self.edges[i,3] != trigrid.UNMESHED or self.edges[i,4] != trigrid.BOUNDARY:
-                print("Skipping edge %d because it has weird cell ids"%i)
+            if (
+                self.edges[i, 3] != trigrid.UNMESHED
+                or self.edges[i, 4] != trigrid.BOUNDARY
+            ):
+                print("Skipping edge %d because it has weird cell ids" % i)
                 continue
 
-            a,b = self.edges[i,:2]
+            a, b = self.edges[i, :2]
 
             # consult the DT to find who the third node is:
             a_nbrs = self.delaunay_neighbors(a)
             b_nbrs = self.delaunay_neighbors(b)
-            abc = np.array([self.points[a],self.points[b],[0,0]])
+            abc = np.array([self.points[a], self.points[b], [0, 0]])
 
             c = None
             for nbr in a_nbrs:
                 if nbr in b_nbrs:
                     # does it lie to the left of the edge?
-                    abc[2,:] = self.points[nbr]
+                    abc[2, :] = self.points[nbr]
                     if trigrid.is_ccw(abc):
                         c = nbr
                         break
             if c is None:
-                print("While looking at edge %d, %s - %s"%(i,self.points[a],self.points[b]))
-                raise Exception("Failed to find the third node that makes up an interior triangle")
+                print(
+                    "While looking at edge %d, %s - %s"
+                    % (i, self.points[a], self.points[b])
+                )
+                raise Exception(
+                    "Failed to find the third node that makes up an interior triangle"
+                )
 
-            pntV = trigrid.circumcenter(abc[0],abc[1],abc[2])
+            pntV = trigrid.circumcenter(abc[0], abc[1], abc[2])
 
             # compute the point-line distance between
             # this edge and the v center, then compare to
@@ -984,23 +1036,27 @@ class LiveDtGridBase(orthomaker.OrthoMaker):
             pntA = self.points[a]
             pntB = self.points[b]
 
-            v_radius = np.sqrt( ((pntA-pntV)**2).sum() )
+            v_radius = np.sqrt(((pntA - pntV) ** 2).sum())
             # This calculates unsigned distance - with Triangle, that's fine because
             # it takes care of the Steiner points, but with CGAL we do it ourselves.
             # line_clearance = np.sqrt( (( 0.5*(pntA+pntB) - pntV)**2).sum() )
-            ab = (pntB - pntA)
-            ab = ab / np.sqrt( np.sum(ab**2) )
-            pos_clearance_dir = np.array( [-ab[1],ab[0]] )
+            ab = pntB - pntA
+            ab = ab / np.sqrt(np.sum(ab**2))
+            pos_clearance_dir = np.array([-ab[1], ab[0]])
             av = pntV - pntA
-            line_clearance = av[0]*pos_clearance_dir[0] + av[1]*pos_clearance_dir[1]
+            line_clearance = av[0] * pos_clearance_dir[0] + av[1] * pos_clearance_dir[1]
 
             # Why do I get some bizarrely short edges?
-            ab = np.sqrt( np.sum( (pntA - pntB)**2 ) )
+            ab = np.sqrt(np.sum((pntA - pntB) ** 2))
 
-            if v_radius > 1.2*line_clearance and v_radius > min_edge_length and ab>min_edge_length:
+            if (
+                v_radius > 1.2 * line_clearance
+                and v_radius > min_edge_length
+                and ab > min_edge_length
+            ):
                 to_subdivide.append(i)
                 # Also make note of the other edges of this same DT triangle
-                for maybe_nbr in [ [a,c], [b,c] ]:
+                for maybe_nbr in [[a, c], [b, c]]:
                     # could be an internal DT edge, or a real edge
                     try:
                         nbr_edge = self.find_edge(maybe_nbr)
@@ -1008,45 +1064,49 @@ class LiveDtGridBase(orthomaker.OrthoMaker):
                     except trigrid.NoSuchEdgeError:
                         pass
         print()
-        print("Will subdivide %d edges"%(len(to_subdivide)))
-        for ni,i in enumerate(to_subdivide):
-            if ni%500==0:
-                log.debug('.')
+        print("Will subdivide %d edges" % (len(to_subdivide)))
+        for ni, i in enumerate(to_subdivide):
+            if ni % 500 == 0:
+                log.debug(".")
 
             if i in neighbors_of_subdivide:
                 del neighbors_of_subdivide[i]
 
-            a,b = self.edges[i,:2]
+            a, b = self.edges[i, :2]
 
             elts = self.all_iters_for_node(a)
             if len(elts) != 1:
                 raise Exception("How is there not exactly one iter for this node!?")
-            scale = 0.5*np.sqrt( np.sum( (self.points[a]-self.points[b])**2 ) )
+            scale = 0.5 * np.sqrt(np.sum((self.points[a] - self.points[b]) ** 2))
 
             # print "Subdividing edge %d with scale %f"%(i,scale)
-            new_elt = self.resample_boundary(elts[0],'forward',
-                                             local_scale=scale,
-                                             new_node_stat=self.node_data[a,0])
+            new_elt = self.resample_boundary(
+                elts[0],
+                "forward",
+                local_scale=scale,
+                new_node_stat=self.node_data[a, 0],
+            )
             # keep track of any edges that change:
-            e1,e2 = self.pnt2edges(new_elt.data)
+            e1, e2 = self.pnt2edges(new_elt.data)
             neighbors_of_subdivide[e1] = 1
             neighbors_of_subdivide[e2] = 1
 
         print("done")
-        subdivided = np.array( list(neighbors_of_subdivide.keys()) )
+        subdivided = np.array(list(neighbors_of_subdivide.keys()))
         return subdivided
 
-    def subdivide_iterate(self,min_edge_length=1.0):
+    def subdivide_iterate(self, min_edge_length=1.0):
         modified_edges = None
         while 1:
             # It wasn't enough to just test for no modified edges - rather than
             # trying to be clever about checking exactly edges that may have
             # been affected by a split, have nested iterations, and stop only
             # when globally there are no modified edges
-            new_modified_edges = self.subdivide(min_edge_length=min_edge_length,
-                                                edge_ids = modified_edges)
+            new_modified_edges = self.subdivide(
+                min_edge_length=min_edge_length, edge_ids=modified_edges
+            )
 
-            print("Subdivide made %d new nodes"%(len(new_modified_edges)/2) )
+            print("Subdivide made %d new nodes" % (len(new_modified_edges) / 2))
             if len(new_modified_edges) == 0:
                 if modified_edges is None:
                     # this means we considered all edges, and still found nobody
@@ -1060,8 +1120,8 @@ class LiveDtGridBase(orthomaker.OrthoMaker):
             else:
                 modified_edges = new_modified_edges
 
-    def smoothed_poly(self,density,min_edge_length=1.0):
-        """ Returns a polygon for the boundary that has all 'small' concave features
+    def smoothed_poly(self, density, min_edge_length=1.0):
+        """Returns a polygon for the boundary that has all 'small' concave features
         removed.  Modifies the boundary points, but only by adding new samples evenly
         between originals.
         """
@@ -1076,7 +1136,7 @@ class LiveDtGridBase(orthomaker.OrthoMaker):
         #  with scale calculated at circumcenter
         # For all non-deleted cells, create an array of all edges
         #  The notes in smoother say that if an edge appears exactly once
-        #  then it should be kept. 
+        #  then it should be kept.
         # Edges that appear twice are internal to the domain.
         #  If/when degenerate edges take part in this, they will have to be
         #  handled specially, since they *should* have two adjacent, valid, cells.
@@ -1106,14 +1166,12 @@ class LiveDtGridBase(orthomaker.OrthoMaker):
         cells = self.dt_interior_cells()
         print("Marking for deletion DT faces that are too small")
         points = self.points[cells]
-        vcenters = trigrid.circumcenter(points[:,0],
-                                        points[:,1],
-                                        points[:,2])
+        vcenters = trigrid.circumcenter(points[:, 0], points[:, 1], points[:, 2])
         # Threshold on the radius, squared -
-        # 
-        r2_min = (density(vcenters)/2.0 * self.scale_ratio_for_cutoff)**2
+        #
+        r2_min = (density(vcenters) / 2.0 * self.scale_ratio_for_cutoff) ** 2
         # r^2 for each internal DT face
-        r2 = np.sum( (vcenters - points[:,0,:])**2,axis=1)
+        r2 = np.sum((vcenters - points[:, 0, :]) ** 2, axis=1)
         valid = r2 >= r2_min
 
         # From here on out it follows smoother.py very closely...
@@ -1121,19 +1179,19 @@ class LiveDtGridBase(orthomaker.OrthoMaker):
         print("Compiling valid edges")
         # expands cells into edges
         good_cells = cells[valid]
-        all_edges = good_cells[:,np.array([[0,1],[1,2],[2,0]])]
+        all_edges = good_cells[:, np.array([[0, 1], [1, 2], [2, 0]])]
         # cells is Nfaces x 3
         # all_edges is then Nfaces x 3 x 2
         # combine the first two dimensions, so we have a regular edges array
-        all_edges = all_edges.reshape( (-1,2) )
+        all_edges = all_edges.reshape((-1, 2))
 
         print("building hash of edges")
         edge_hash = {}
 
         for i in range(len(all_edges)):
-            k = all_edges[i,:]
+            k = all_edges[i, :]
             if k[0] > k[1]:
-                k=k[::-1]
+                k = k[::-1]
             k = tuple(k)
             if k not in edge_hash:
                 edge_hash[k] = 0
@@ -1150,19 +1208,17 @@ class LiveDtGridBase(orthomaker.OrthoMaker):
         good_edges = np.array(good_edges)
 
         print("Finding polygons from edges")
-        tgrid = trigrid.TriGrid(points=self.points,
-                                edges =good_edges)
+        tgrid = trigrid.TriGrid(points=self.points, edges=good_edges)
         tgrid.verbose = 2
-        polygons = tgrid.edges_to_polygons(None) # none=> use all edges
+        polygons = tgrid.edges_to_polygons(None)  # none=> use all edges
 
-        self.smooth_all_polygons = polygons # for debugging..
+        self.smooth_all_polygons = polygons  # for debugging..
 
         print("done with smoothing")
         return polygons[0]
 
-
-    def apollonius_scale(self,r,min_edge_length=1.0,process_islands=True):
-        """ Return an apollonius based field giving the scale subject to
+    def apollonius_scale(self, r, min_edge_length=1.0, process_islands=True):
+        """Return an apollonius based field giving the scale subject to
         the local feature size of geo and the telescoping rate r
         """
         self.subdivide_iterate(min_edge_length=min_edge_length)
@@ -1170,12 +1226,10 @@ class LiveDtGridBase(orthomaker.OrthoMaker):
         dt_cells = self.dt_interior_cells()
 
         points = self.points[dt_cells]
-        vcenters = trigrid.circumcenter(points[:,0],
-                                        points[:,1],
-                                        points[:,2])
+        vcenters = trigrid.circumcenter(points[:, 0], points[:, 1], points[:, 2])
 
-        radii = np.sqrt( np.sum( (vcenters - points[:,0,:])**2,axis=1) )
-        diam = 2*radii
+        radii = np.sqrt(np.sum((vcenters - points[:, 0, :]) ** 2, axis=1))
+        diam = 2 * radii
 
         if process_islands:
             print("Hang on.  Adding scale points for islands")
@@ -1195,34 +1249,35 @@ class LiveDtGridBase(orthomaker.OrthoMaker):
                 max_dsqr = 0
                 for i in range(len(points)):
                     pa = points[i]
-                    for j in range(i,len(points)):
-                        d = ((pa - points[j])**2).sum()
-                        max_dsqr = max(d,max_dsqr)
+                    for j in range(i, len(points)):
+                        d = ((pa - points[j]) ** 2).sum()
+                        max_dsqr = max(d, max_dsqr)
 
-                feature_scale = np.sqrt( max_dsqr )
-                print("Ring has scale of ",feature_scale)
+                feature_scale = np.sqrt(max_dsqr)
+                print("Ring has scale of ", feature_scale)
 
-                island_centers.append( center )
+                island_centers.append(center)
                 # this very roughly says that we want at least 4 edges
                 # for representing this thing.
                 #   island_scales.append( feature_scale / 2.0)
                 # actually it's not too hard to have a skinny island
                 # 2 units long that gets reduced to a degenerate pair
                 # of edges, so go conservative here:
-                island_scales.append( feature_scale / 3.0 )
+                island_scales.append(feature_scale / 3.0)
 
             island_centers = np.array(island_centers)
             island_scales = np.array(island_scales)
 
             if len(island_centers) > 0:
-                vcenters = np.concatenate( (vcenters,island_centers) )
-                diam = np.concatenate( (diam,island_scales) )
+                vcenters = np.concatenate((vcenters, island_centers))
+                diam = np.concatenate((diam, island_scales))
             print("Done with islands")
 
-        scale = field.ApolloniusField(vcenters,diam)
+        scale = field.ApolloniusField(vcenters, diam)
 
         return scale
-    
+
+
 try:
     # If CGAL gives import errors, it may be because gmp is outdated
     # This got past conda because the build of mpfr isn't specific
@@ -1231,73 +1286,78 @@ try:
     # One fix in anaconda land is:
     #   conda update gmp to install 6.1.2
 
-    
     from CGAL.CGAL_Triangulation_2 import Constrained_Delaunay_triangulation_2
     from CGAL.CGAL_Kernel import Point_2
 
     class LiveDtCGAL(LiveDtGridBase):
         class Edge(object):
-            def __init__(self,**kwargs):
+            def __init__(self, **kwargs):
                 self.__dict__.update(kwargs)
+
             def vertices(self):
-                return self.f.vertex( (self.v+1)%3 ),self.f.vertex( (self.v+2)%3 )
+                return self.f.vertex((self.v + 1) % 3), self.f.vertex((self.v + 2) % 3)
 
         def dt_allocate(self):
-            """ allocate both the triangulation and the vertex handle
-            """ 
+            """allocate both the triangulation and the vertex handle"""
             self.DT = Constrained_Delaunay_triangulation_2()
-        def dt_insert(self,n):
-            """ Given a point that is correctly in self.points, and vh that
+
+        def dt_insert(self, n):
+            """Given a point that is correctly in self.points, and vh that
             is large enough, do the work of inserting the node and updating
             the vertex handle.
             """
-            pnt = Point_2( self.points[n,0], self.points[n,1] )
+            pnt = Point_2(self.points[n, 0], self.points[n, 1])
             self.vh[n] = self.DT.insert(pnt)
             self.vh_info[self.vh[n]] = n
             if self.verbose > 2:
-                print("    dt_insert node %d"%n)
+                print("    dt_insert node %d" % n)
                 self.check()
-        def dt_insert_constraint(self,a,b):
-            self.DT.insert_constraint( self.vh[a], self.vh[b] )
-        def dt_remove_constraints(self,vh):
+
+        def dt_insert_constraint(self, a, b):
+            self.DT.insert_constraint(self.vh[a], self.vh[b])
+
+        def dt_remove_constraints(self, vh):
             self.DT.remove_incident_constraints(vh)
-        def dt_remove(self,n):
-            self.DT.remove( self.vh[n] )
+
+        def dt_remove(self, n):
+            self.DT.remove(self.vh[n])
             del self.vh_info[self.vh[n]]
             self.vh[n] = 0
             if self.verbose > 2:
-                print("    dt_remove node %d"%n)
+                print("    dt_remove node %d" % n)
                 self.check()
-        def dt_remove_constrained_edge(self,edge):
-            self.DT.remove_constrained_edge(edge.f,edge.v)
 
-        def dt_incident_constraints(self,vh):
+        def dt_remove_constrained_edge(self, edge):
+            self.DT.remove_constrained_edge(edge.f, edge.v)
+
+        def dt_incident_constraints(self, vh):
             constraints = []
-            self.DT.incident_constraints(vh,constraints)
+            self.DT.incident_constraints(vh, constraints)
             # maybe I should keep a reference to the Edge object, too?
             # that gets through some early crashes.
-            return [self.Edge(f=e.first,v=e.second,keepalive=[e]) for e in constraints]
-
+            return [
+                self.Edge(f=e.first, v=e.second, keepalive=[e]) for e in constraints
+            ]
 
         def dt_cell_node_iter(self):
-            """ generator for going over finite cells, returning 
+            """generator for going over finite cells, returning
             nodes as triples
             """
             face_it = self.DT.finite_faces()
 
             for f in face_it:
-                yield [self.vh_info[f.vertex(i)] for i in [0,1,2]]
-        
+                yield [self.vh_info[f.vertex(i)] for i in [0, 1, 2]]
+
         def delaunay_face(self, pnt):
-            """ Returns node indices making up the face of the DT in which pnt lies.
+            """Returns node indices making up the face of the DT in which pnt lies.
             Not explicitly tested, but this should return None for infinite nodes.
             """
-            f = self.DT.locate( Point_2(pnt[0],pnt[1]) )
-            n = [self.vh_info[f.vertex(i)] for i in [0,1,2]]
+            f = self.DT.locate(Point_2(pnt[0], pnt[1]))
+            n = [self.vh_info[f.vertex(i)] for i in [0, 1, 2]]
             return n
-        
+
         def delaunay_neighbors(self, n):
-            """ returns an array of node ids that the DT connects the given node
+            """returns an array of node ids that the DT connects the given node
             to.  Includes existing edges
             """
             nbrs = []
@@ -1310,9 +1370,9 @@ try:
             # Note that in some cases, this is not an iterator but a circulator
             # (that's a CGAL thing, not a python thing), and it cannot be used
             # in a regular for loop
-            circ=self.DT.incident_vertices(self.vh[n])
+            circ = self.DT.incident_vertices(self.vh[n])
             while 1:
-                v=circ.next()
+                v = circ.next()
                 if first_v is None:
                     first_v = v
                 elif first_v == v:
@@ -1325,30 +1385,33 @@ try:
 
                 # This is going to need something faster, or maybe the store info
                 # bits of cgal.
-                nbr_i = self.vh_info[v] #  np.where( self.vh == v )[0]
+                nbr_i = self.vh_info[v]  #  np.where( self.vh == v )[0]
                 if nbr_i is None:
-                    print("    While looking for vertex at ",v.point())
-                    raise Exception("expected vertex handle->node, but instead got %s"%nbr_i)
-                nbrs.append( nbr_i )
+                    print("    While looking for vertex at ", v.point())
+                    raise Exception(
+                        "expected vertex handle->node, but instead got %s" % nbr_i
+                    )
+                nbrs.append(nbr_i)
             return np.array(nbrs)
 
-        def plot_dt(self,clip=None):
+        def plot_dt(self, clip=None):
             edges = []
             colors = []
 
-            gray = (0.7,0.7,0.7,1.0)
-            magenta = (1.0,0.0,1.0,1.0)
+            gray = (0.7, 0.7, 0.7, 1.0)
+            magenta = (1.0, 0.0, 1.0, 1.0)
 
             e_iter = self.DT.finite_edges()
 
             for e in e_iter:
-                face,vertex = e
+                face, vertex = e
 
-                v1 = face.vertex( (vertex + 1)%3 )
-                v2 = face.vertex( (vertex + 2)%3 )
+                v1 = face.vertex((vertex + 1) % 3)
+                v2 = face.vertex((vertex + 2) % 3)
 
-                edges.append( [ [v1.point().x(),v1.point().y()],
-                                [v2.point().x(),v2.point().y()] ] )
+                edges.append(
+                    [[v1.point().x(), v1.point().y()], [v2.point().x(), v2.point().y()]]
+                )
                 if self.DT.is_constrained(e):
                     colors.append(magenta)
                 else:
@@ -1360,20 +1423,23 @@ try:
             if clip is None:
                 clip = self.default_clip
             if clip is not None:
-                points_visible = (segments[...,0] >= clip[0]) & (segments[...,0]<=clip[1]) \
-                                 & (segments[...,1] >= clip[2]) & (segments[...,1]<=clip[3])
+                points_visible = (
+                    (segments[..., 0] >= clip[0])
+                    & (segments[..., 0] <= clip[1])
+                    & (segments[..., 1] >= clip[2])
+                    & (segments[..., 1] <= clip[3])
+                )
                 # so now clip is a bool array of length Nedges
-                clip = np.any( points_visible, axis=1)
-                segments = segments[clip,...]
-                colors = colors[clip,...]
+                clip = np.any(points_visible, axis=1)
+                segments = segments[clip, ...]
+                colors = colors[clip, ...]
 
-            coll = collections.LineCollection(segments,colors=colors)
+            coll = collections.LineCollection(segments, colors=colors)
 
             ax = plt.gca()
             ax.add_collection(coll)
 
-
-        def dt_clearance(self,n):
+        def dt_clearance(self, n):
             """POORLY TESTED
             Returns the diameter of the smallest circumcircle (?) of a face
             incident to the node n.  Currently this doesn't work terribly well
@@ -1381,31 +1447,33 @@ try:
             at obtuse angles.
             """
             diams = []
-            f_circ = self.DT.incident_faces( self.vh[n] )
+            f_circ = self.DT.incident_faces(self.vh[n])
             first_f = next(f_circ)
             f = first_f
             while 1:
-                f=f_circ.next()
+                f = f_circ.next()
                 if f == first_f:
                     break
-                diams.append( self.face_diameter(f) )
+                diams.append(self.face_diameter(f))
 
             return min(diams)
 
         # Not 100% sure of these
-        def face_nodes(self,face):
-            return np.array( [self.vh_info[face.vertex(j)] for j in range(3)] )
-        def face_center(self,face):
-            points = self.points[self.face_nodes(face)]
-            return trigrid.circumcenter(points[0],points[1],points[2])
-        def face_diameter(self,face):
-            points = self.points[self.face_nodes(face)]
-            ccenter = trigrid.circumcenter(points[0],points[1],points[2])
-            return 2*norm(points[0] - ccenter)
+        def face_nodes(self, face):
+            return np.array([self.vh_info[face.vertex(j)] for j in range(3)])
 
-        #-# Detecting self-intersections
-        def face_in_direction(self,vh,vec):
-            """ 
+        def face_center(self, face):
+            points = self.points[self.face_nodes(face)]
+            return trigrid.circumcenter(points[0], points[1], points[2])
+
+        def face_diameter(self, face):
+            points = self.points[self.face_nodes(face)]
+            ccenter = trigrid.circumcenter(points[0], points[1], points[2])
+            return 2 * norm(points[0] - ccenter)
+
+        # -# Detecting self-intersections
+        def face_in_direction(self, vh, vec):
+            """
             Starting at the vertex handle vh, look in the direction
             of vec to choose a face adjacent to vh.
 
@@ -1413,7 +1481,7 @@ try:
             """
             # vh: vertex handle
             # vec: search direction as array
-            theta = np.arctan2(vec[1],vec[0])
+            theta = np.arctan2(vec[1], vec[0])
 
             # choose a starting face
             best_f = None
@@ -1424,24 +1492,24 @@ try:
             f = first_f
             while 1:
                 # get the vertices of this face:
-                vlist=[f.vertex(i) for i in range(3)]
+                vlist = [f.vertex(i) for i in range(3)]
                 # rotate to make v1 first:
                 vh_index = vlist.index(vh)
                 vlist = vlist[vh_index:] + vlist[:vh_index]
 
                 # then check the relative angles of the other two - they are in CCW order
-                pnts = np.array( [ [v.point().x(),v.point().y()] for v in vlist] )
+                pnts = np.array([[v.point().x(), v.point().y()] for v in vlist])
                 delta01 = pnts[1] - pnts[0]
                 delta02 = pnts[2] - pnts[0]
-                theta01 = np.arctan2( delta01[1], delta01[0] )
-                theta02 = np.arctan2( delta02[1], delta02[0] )
+                theta01 = np.arctan2(delta01[1], delta01[0])
+                theta02 = np.arctan2(delta02[1], delta02[0])
 
-                # 
-                d01 = (theta - theta01)%(2*np.pi)
-                d02 = (theta02 - theta)%(2*np.pi)
+                #
+                d01 = (theta - theta01) % (2 * np.pi)
+                d02 = (theta02 - theta) % (2 * np.pi)
 
-                #print "starting point:",pnts[0]
-                #print "Theta01=%f  Theta=%f  Theta02=%f"%(theta01,theta,theta02)
+                # print "starting point:",pnts[0]
+                # print "Theta01=%f  Theta=%f  Theta02=%f"%(theta01,theta,theta02)
 
                 if (d01 < np.pi) and (d02 < np.pi):
                     best_f = f
@@ -1454,8 +1522,8 @@ try:
                     return None
             return best_f
 
-        def next_face(self,f,p1,vec):
-            """ find the next face from f, along the line through v in the direction vec,
+        def next_face(self, f, p1, vec):
+            """find the next face from f, along the line through v in the direction vec,
             return the face and the edge that was crossed, where the edge is a face,i tuple
 
             Used for the CGAL implementation of line_walk_edges() and shoot_ray()
@@ -1463,12 +1531,15 @@ try:
             # First get the vertices that make up this face:
 
             # look over the edges:
-            vlist=[f.vertex(i) for i in range(3)]
-            pnts = np.array( [ [v.point().x(),v.point().y()] for v in vlist] )
+            vlist = [f.vertex(i) for i in range(3)]
+            pnts = np.array([[v.point().x(), v.point().y()] for v in vlist])
 
             # check which side of the line each vertex is on:
-            left_vec = np.array( [-vec[1],vec[0]] )
-            left_distance = [ (pnts[i,0] - p1[0])*left_vec[0] + (pnts[i,1]-p1[1])*left_vec[1] for i in range(3)]
+            left_vec = np.array([-vec[1], vec[0]])
+            left_distance = [
+                (pnts[i, 0] - p1[0]) * left_vec[0] + (pnts[i, 1] - p1[1]) * left_vec[1]
+                for i in range(3)
+            ]
 
             # And we want the edge that goes from a negative to positive left_distance.
             # should end with i being the index of the start of the edge that we want
@@ -1480,30 +1551,36 @@ try:
                 # the query line, that's the <
                 # the == part comes in where the query line exits through a vertex.
                 # in that case, we choose the edge to the left (arbitrary).
-                if left_distance[i] <= 0 and left_distance[(i+1)%3] > 0:
+                if left_distance[i] <= 0 and left_distance[(i + 1) % 3] > 0:
                     break
             # so now the new edge is between vertex i,(i+1)%3, so in CGAL parlance
             # that's
-            edge = (f,(i-1)%3)
-            new_face = f.neighbor( (i-1)%3 )
-            return edge,new_face
+            edge = (f, (i - 1) % 3)
+            new_face = f.neighbor((i - 1) % 3)
+            return edge, new_face
 
         # N.B.: the svn (and original git) versions of live_dt included
         # a new set of check_line_is_clear_new, line_walk_edges_new, and
         # various helpers, which made more extensive use of CGAL primitives
-        # 
+        #
 
-        ## 
-        def line_walk_edges(self,n1=None,n2=None,v1=None,v2=None,
-                            include_tangent=False,
-                            include_coincident=True):
-            """ for a line starting at node n1 or vertex handle v1 and
+        ##
+        def line_walk_edges(
+            self,
+            n1=None,
+            n2=None,
+            v1=None,
+            v2=None,
+            include_tangent=False,
+            include_coincident=True,
+        ):
+            """for a line starting at node n1 or vertex handle v1 and
             ending at node n2 or vertex handle v2, return all the edges
             that intersect.
 
             Used in the CGAL implementation of check_line_is_clear
             """
-            # this is a bit dicey in terms of numerical robustness - 
+            # this is a bit dicey in terms of numerical robustness -
             # face_in_direction is liable to give bad results when multiple faces are
             # indistinguishable (like a colinear set of points with many degenerate faces
             # basically on top of each other).
@@ -1518,9 +1595,12 @@ try:
             #        on the other side of the query line
             #    (3) edge is coincident with query line
 
-
             # so for a first cut - make sure that we aren't just directly connected:
-            if (n2 is not None) and (n1 is not None) and (n2 in self.delaunay_neighbors(n1)):
+            if (
+                (n2 is not None)
+                and (n1 is not None)
+                and (n2 in self.delaunay_neighbors(n1))
+            ):
                 return []
 
             if v1 is None:
@@ -1530,20 +1610,20 @@ try:
 
             # Get the points from the vertices, not self.points, because in some cases
             # (adjust_move_node) we may be probing
-            p1 = np.array([ v1.point().x(), v1.point().y()] )
-            p2 = np.array([ v2.point().x(), v2.point().y()] )
+            p1 = np.array([v1.point().x(), v1.point().y()])
+            p2 = np.array([v2.point().x(), v2.point().y()])
 
             # print "Walking the line: ",p1,p2
 
             vec = p2 - p1
             unit_vec = vec / norm(vec)
 
-            pnt = p1 
+            pnt = p1
 
             # NB: this can be None - though not sure whether the context can
             # ensure that it never would be.
-            f1 = self.face_in_direction(v1,vec)
-            f2 = self.face_in_direction(v2,-vec)
+            f1 = self.face_in_direction(v1, vec)
+            f2 = self.face_in_direction(v2, -vec)
 
             # do the search:
             f_trav = f1
@@ -1561,76 +1641,78 @@ try:
 
                     if not still_close:
                         # Check to see if this vertex is beyond the vertex of interest
-                        vertex_i_pnt = np.array( [f_trav.vertex(i).point().x(),f_trav.vertex(i).point().y()] )
-                        if norm(vec) > np.dot( vertex_i_pnt - p1, unit_vec):
+                        vertex_i_pnt = np.array(
+                            [f_trav.vertex(i).point().x(), f_trav.vertex(i).point().y()]
+                        )
+                        if norm(vec) > np.dot(vertex_i_pnt - p1, unit_vec):
                             still_close = 1
 
                 if not still_close:
                     # We didn't find any vertices of this face that were as close to where we started
                     # as the destination was, so we must have passed it.
-                    print("BAILING: n1=%s n2=%s v1=%s v2=%s"%(n1,n2,v1,v2))
-                    raise Exception("Yikes - line_walk_edges exposed its numerical issues.  We traversed too far.")
+                    print("BAILING: n1=%s n2=%s v1=%s v2=%s" % (n1, n2, v1, v2))
+                    raise Exception(
+                        "Yikes - line_walk_edges exposed its numerical issues.  We traversed too far."
+                    )
                     return edges
 
-                edge,new_face = self.next_face(f_trav,pnt,vec)
+                edge, new_face = self.next_face(f_trav, pnt, vec)
 
                 edges.append(edge)
 
                 f_trav = new_face
             return edges
 
-        def shoot_ray(self,n1,vec,max_dist=None):
-            """ Shoot a ray from self.points[n] in the given direction vec
+        def shoot_ray(self, n1, vec, max_dist=None):
+            """Shoot a ray from self.points[n] in the given direction vec
             returns (e_index,pnt), the first edge that it encounters and the location
-            of the intersection 
+            of the intersection
 
             max_dist: stop checking beyond this distance -- currently doesn't make it faster
               but will return None,None if the point that it finds is too far away
             """
 
             v1 = self.vh[n1]
-            vec = vec / norm(vec) # make sure it's a unit vector
+            vec = vec / norm(vec)  # make sure it's a unit vector
             pnt = self.points[n1]
 
-            f1 = self.face_in_direction(v1,vec)
+            f1 = self.face_in_direction(v1, vec)
             if f1 is None:
-                return None,None
-            
+                return None, None
+
             # do the search:
             f_trav = f1
 
             while 1:
-                edge,new_face = self.next_face(f_trav,pnt,vec)
+                edge, new_face = self.next_face(f_trav, pnt, vec)
                 # make that into a cgal edge:
                 e = edge
-                face,i = edge
-                va = face.vertex((i+1)%3)
-                vb = face.vertex((i-1)%3)
+                face, i = edge
+                va = face.vertex((i + 1) % 3)
+                vb = face.vertex((i - 1) % 3)
 
                 if max_dist is not None:
                     # Test the distance as we go...
                     pa = va.point()
                     pb = vb.point()
 
-                    d1a = np.array([pa.x()-pnt[0],pa.y() - pnt[1]])
+                    d1a = np.array([pa.x() - pnt[0], pa.y() - pnt[1]])
 
                     # alpha * vec + beta * ab = d1a
                     # | vec[0] ab[0]   | | alpha | = |  d1a[0]  |
                     # | vec[1] ab[1]   | | beta  | = |  d1a[1]  |
 
-                    A = np.array( [[vec[0],  pb.x() - pa.x()],
-                                   [vec[1],  pb.y() - pa.y()]] )
-                    alpha_beta = solve(A,d1a)
+                    A = np.array([[vec[0], pb.x() - pa.x()], [vec[1], pb.y() - pa.y()]])
+                    alpha_beta = solve(A, d1a)
 
                     dist = alpha_beta[0]
                     if dist > max_dist:
-                        return None,None
+                        return None, None
 
                 if self.DT.is_constrained(e):
                     # print "Found a constrained edge"
                     break
                 f_trav = new_face
-
 
             na = self.vh_info[va]
             nb = self.vh_info[vb]
@@ -1647,33 +1729,32 @@ try:
                 # | vec[0] ab[0]   | | alpha | = |  d1a[0]  |
                 # | vec[1] ab[1]   | | beta  | = |  d1a[1]  |
 
-                A = np.array( [[vec[0],ab[0]],[vec[1],ab[1]]] )
-                alpha_beta = solve(A,d1a)
+                A = np.array([[vec[0], ab[0]], [vec[1], ab[1]]])
+                alpha_beta = solve(A, d1a)
             else:
-                pass # already calculated alpha_beta
+                pass  # already calculated alpha_beta
 
-            p_int = pnt + alpha_beta[0]*vec
-            edge_id = self.find_edge((na,nb))
+            p_int = pnt + alpha_beta[0] * vec
+            edge_id = self.find_edge((na, nb))
 
-            return edge_id,p_int
-
+            return edge_id, p_int
 
         ## steppers for line_walk_edges_new
         def next_from_vertex(self, vert, vec):
             # from a vertex, we either go into one of the faces, or along an edge
-            qp1,qp2 = vec
+            qp1, qp2 = vec
 
-            last_left_distance=None
+            last_left_distance = None
             last_nbr = None
 
             start = None
-            v_circ=self.DT.incident_vertices(vert)
+            v_circ = self.DT.incident_vertices(vert)
             while 1:
-                nbr=v_circ.next()
+                nbr = v_circ.next()
 
                 if self.DT.is_infinite(nbr):
                     continue
-                pnt = np.array( [nbr.point().x(),nbr.point().y()] )
+                pnt = np.array([nbr.point().x(), nbr.point().y()])
 
                 # fall back to robust_predicates for proper comparison
                 # when pnt is left of qp1 => qp2, result should be positive
@@ -1687,12 +1768,12 @@ try:
                 # end points will have left_distance==0, and both will be preceeded by the infinite
                 # vertex.  So to distinguish colinear points it is necessary to check distance in the
                 # desired direction.
-                if left_distance==0.0:
-                    vert_xy=[vert.point().x(),vert.point().y()]
-                    progress=exact_delaunay.rel_ordered(vert_xy,pnt,qp1,qp2)
+                if left_distance == 0.0:
+                    vert_xy = [vert.point().x(), vert.point().y()]
+                    progress = exact_delaunay.rel_ordered(vert_xy, pnt, qp1, qp2)
 
                     if progress:
-                        return ['v',nbr]
+                        return ["v", nbr]
 
                 # Note that it's also possible for the infinite vertex to come up.
                 # this should be okay when the left_distance==0.0 check is outside the
@@ -1705,27 +1786,31 @@ try:
                     if left_distance > 0:
                         # what is the face between the last one and this one??
                         # it's vertices are vert, nbr, last_nbr
-                        f_circ=self.DT.incident_faces(vert)
-                        f0=None
-                        while 1: # for face in :
-                            face=f_circ.next()
+                        f_circ = self.DT.incident_faces(vert)
+                        f0 = None
+                        while 1:  # for face in :
+                            face = f_circ.next()
                             for j in range(3):
                                 if face.vertex(j) == nbr:
                                     for k in range(3):
                                         if face.vertex(k) == last_nbr:
-                                            return ['f',face]
+                                            return ["f", face]
                             if f0 is None:
-                                f0=face
+                                f0 = face
                             else:
-                                assert face!=f0,"Failed to leave circulator loop"
-                        raise Exception("Found a good pair of incident vertices, but failed to find the common face.")
+                                assert face != f0, "Failed to leave circulator loop"
+                        raise Exception(
+                            "Found a good pair of incident vertices, but failed to find the common face."
+                        )
 
                 # Sanity check - if we've gone all the way around
                 if start is None:
                     start = nbr
-                else: # must not be the first time through the loop:
+                else:  # must not be the first time through the loop:
                     if nbr == start:
-                        raise Exception("This is bad - we checked all vertices and didn't find a good neighbor")
+                        raise Exception(
+                            "This is bad - we checked all vertices and didn't find a good neighbor"
+                        )
 
                 last_left_distance = left_distance
                 last_nbr = nbr
@@ -1736,28 +1821,28 @@ try:
 
         def next_from_edge(self, edge, vec):
             # vec is the tuple of points defining the query line
-            qp1,qp2 = vec
-            
+            qp1, qp2 = vec
+
             # edge is a tuple of face and vertex index
-            v1 = edge[0].vertex( (edge[1]+1)%3 )
-            v2 = edge[0].vertex( (edge[1]+2)%3 )
-            
+            v1 = edge[0].vertex((edge[1] + 1) % 3)
+            v2 = edge[0].vertex((edge[1] + 2) % 3)
+
             # this means the edge was coincident with the query line
             p1 = v1.point()
             p2 = v2.point()
 
-            p1 = np.array( [p1.x(),p1.y()] )
-            p2 = np.array( [p2.x(),p2.y()] )
+            p1 = np.array([p1.x(), p1.y()])
+            p2 = np.array([p2.x(), p2.y()])
 
             line12 = p2 - p1
 
-            if np.dot( line12, qp2-qp1 ) > 0:
-                return ['v',v2]
+            if np.dot(line12, qp2 - qp1) > 0:
+                return ["v", v2]
             else:
-                return ['v',v1]
-            
+                return ["v", v1]
+
         def next_from_face(self, f, vec):
-            qp1,qp2 = vec
+            qp1, qp2 = vec
             # stepping through a face, along the query line qp1 -> qp2
             # we exit the face either via an edge, or possibly exactly through a
             # vertex.
@@ -1767,15 +1852,15 @@ try:
             # First get the vertices that make up this face:
 
             # look over the edges:
-            vlist=[f.vertex(i) for i in range(3)]
-            pnts = np.array( [ [v.point().x(),v.point().y()] for v in vlist] )
+            vlist = [f.vertex(i) for i in range(3)]
+            pnts = np.array([[v.point().x(), v.point().y()] for v in vlist])
 
             # check which side of the line each vertex is on:
 
             # HERE is where the numerical issues come up.
             # could possibly do this in terms of the end points of the query line, in order to
             # at least robustly handle the starting and ending points.
-            left_distance = [ distance_left_of_line(pnts[i], qp1,qp2 ) for i in range(3)]
+            left_distance = [distance_left_of_line(pnts[i], qp1, qp2) for i in range(3)]
 
             # And we want the edge that goes from a negative to positive left_distance.
             # should end with i being the index of the start of the edge that we want
@@ -1787,26 +1872,33 @@ try:
                 # the query line, that's the <
                 # the == part comes in where the query line exits through a vertex.
                 # in that case, we choose the edge to the left (arbitrary).
-                if left_distance[i] <= 0 and left_distance[(i+1)%3] > 0:
+                if left_distance[i] <= 0 and left_distance[(i + 1) % 3] > 0:
                     break
 
                 # sanity check
-                if i==2:
-                    raise Exception("Trying to figure out how to get out of a face, and nothing looks good")
+                if i == 2:
+                    raise Exception(
+                        "Trying to figure out how to get out of a face, and nothing looks good"
+                    )
 
             # Two cases - leaving via vertex, or crossing an edge internally.
-            if left_distance[i]==0:
-                return ['v',vlist[i]]
+            if left_distance[i] == 0:
+                return ["v", vlist[i]]
             else:
                 # so now the new edge is between vertex i,(i+1)%3, so in CGAL parlance
                 # that's
-                new_face = f.neighbor( (i-1)%3 )
-                return ['f',new_face]
+                new_face = f.neighbor((i - 1) % 3)
+                return ["f", new_face]
 
-        
-        def line_walk_edges_new(self,n1=None,n2=None,v1=None,v2=None,
-                                include_tangent=False,
-                                include_coincident=True):
+        def line_walk_edges_new(
+            self,
+            n1=None,
+            n2=None,
+            v1=None,
+            v2=None,
+            include_tangent=False,
+            include_coincident=True,
+        ):
             # Use the CGAL primitives to implement this in a hopefully more
             # robust way.
             # unfortunately we can't use the line_walk() circulator directly
@@ -1826,8 +1918,12 @@ try:
             # but when the query line goes through a vertex, it's probably better
             #  to just record the vertex.
             # so for a first cut - make sure that we aren't just directly connected:
-            
-            if (n2 is not None) and (n1 is not None) and (n2 in self.delaunay_neighbors(n1)):
+
+            if (
+                (n2 is not None)
+                and (n1 is not None)
+                and (n2 in self.delaunay_neighbors(n1))
+            ):
                 return []
 
             if v1 is None:
@@ -1837,83 +1933,89 @@ try:
 
             # Get the points from the vertices, not self.points, because in some cases
             # (adjust_move_node) we may be probing
-            p1 = np.array([ v1.point().x(), v1.point().y()] )
-            p2 = np.array([ v2.point().x(), v2.point().y()] )
+            p1 = np.array([v1.point().x(), v1.point().y()])
+            p2 = np.array([v2.point().x(), v2.point().y()])
 
             if self.verbose > 1:
-                print("Walking the line: ",p1,p2)
-            
-            hits = [ ['v',v1] ]
+                print("Walking the line: ", p1, p2)
+
+            hits = [["v", v1]]
 
             # do the search:
             # Note that we really need a better equality test here
             # hits[-1][1] != v2 doesn't work beac
-            def obj_eq(a,b):
-                return type(a)==type(b) and a==b
+            def obj_eq(a, b):
+                return type(a) == type(b) and a == b
 
             while not obj_eq(hits[-1][1], v2):
                 # if we just came from a vertex, choose a new face in the given direction
-                if hits[-1][0] == 'v':
+                if hits[-1][0] == "v":
                     if self.verbose > 1:
-                        print("Last hit was the vertex at %s"%(hits[-1][1].point()))
+                        print("Last hit was the vertex at %s" % (hits[-1][1].point()))
 
                     # like face_in_direction, but also check for possibility that
                     # an edge is coincident with the query line.
 
-                    next_item = self.next_from_vertex( hits[-1][1],(p1,p2) )
+                    next_item = self.next_from_vertex(hits[-1][1], (p1, p2))
 
                     if self.verbose > 1:
-                        print("Moved from vertex to ",next_item)
+                        print("Moved from vertex to ", next_item)
 
-                    if next_item[0] == 'v':
+                    if next_item[0] == "v":
                         # Find the edge connecting these two:
-                        e0=None
-                        e_circ=self.DT.incident_edges( next_item[1] )
+                        e0 = None
+                        e_circ = self.DT.incident_edges(next_item[1])
                         while 1:
-                            e=e_circ.next()
-                            f,v_opp = e
+                            e = e_circ.next()
+                            f, v_opp = e
 
-                            if f.vertex( (v_opp+1)%3 ) == hits[-1][1] or \
-                               f.vertex( (v_opp+2)%3 ) == hits[-1][1]:
-                                hits.append( ['e', (f,v_opp)] )
+                            if (
+                                f.vertex((v_opp + 1) % 3) == hits[-1][1]
+                                or f.vertex((v_opp + 2) % 3) == hits[-1][1]
+                            ):
+                                hits.append(["e", (f, v_opp)])
                                 break
-                            if e0 is None: # sanity check
-                                e0=e
-                            elif e0==e:
+                            if e0 is None:  # sanity check
+                                e0 = e
+                            elif e0 == e:
                                 raise Exception("Checked all edges, didn't find a hit")
 
-                elif hits[-1][0] == 'f':
+                elif hits[-1][0] == "f":
                     # either we cross over an edge into another face, or we hit
                     # one of the vertices.
 
-                    next_item = self.next_from_face( hits[-1][1], (p1,p2) )
+                    next_item = self.next_from_face(hits[-1][1], (p1, p2))
 
                     # in case the next item is also a face, go ahead and insert
                     # the intervening edge
-                    if next_item[0]=='f':
+                    if next_item[0] == "f":
                         middle_edge = None
 
                         for v_opp in range(3):
                             if self.verbose > 1:
-                                print("Comparing %s to %s looking for the intervening edge"%(hits[-1][1].neighbor(v_opp),
-                                                                                             next_item[1]))
+                                print(
+                                    "Comparing %s to %s looking for the intervening edge"
+                                    % (hits[-1][1].neighbor(v_opp), next_item[1])
+                                )
                             if hits[-1][1].neighbor(v_opp) == next_item[1]:
-                                middle_edge = ['e', (hits[-1][1],v_opp)] 
+                                middle_edge = ["e", (hits[-1][1], v_opp)]
                                 break
                         if middle_edge is not None:
-                            hits.append( middle_edge )
+                            hits.append(middle_edge)
                         else:
-                            raise Exception("Two faces in a row, but couldn't find the edge between them")
+                            raise Exception(
+                                "Two faces in a row, but couldn't find the edge between them"
+                            )
 
-                elif hits[-1][0] == 'e':
+                elif hits[-1][0] == "e":
                     # This one is easy - just have to check which end of the edge is in the
                     # desired direction
-                    next_item = self.next_from_edge( hits[-1][1], (p1,p2) )
+                    next_item = self.next_from_edge(hits[-1][1], (p1, p2))
 
-                hits.append( next_item )
+                hits.append(next_item)
 
             if self.verbose > 1:
-                print("Got hits: ",hits)
+                print("Got hits: ", hits)
 
             # but ignore the first and last, since they are the starting/ending points
             hits = hits[1:-1]
@@ -1921,25 +2023,32 @@ try:
             # and since some of those CGAL elements are going to disappear, translate everything
             # into node references
             for i in range(len(hits)):
-                if hits[i][0] == 'v':
-                    hits[i][1] = [ self.vh_info[ hits[i][1] ] ]
-                elif hits[i][0] == 'e':
-                    f,v_opp = hits[i][1]
+                if hits[i][0] == "v":
+                    hits[i][1] = [self.vh_info[hits[i][1]]]
+                elif hits[i][0] == "e":
+                    f, v_opp = hits[i][1]
 
-                    hits[i][1] = [ self.vh_info[ f.vertex( (v_opp+1)%3 ) ], self.vh_info[ f.vertex( (v_opp+2)%3 ) ] ]
-                elif hits[i][0] == 'f':
+                    hits[i][1] = [
+                        self.vh_info[f.vertex((v_opp + 1) % 3)],
+                        self.vh_info[f.vertex((v_opp + 2) % 3)],
+                    ]
+                elif hits[i][0] == "f":
                     f = hits[i][1]
 
-                    hits[i][1] = [ self.vh_info[ f.vertex(0) ],
-                                   self.vh_info[ f.vertex(1) ],
-                                   f.vertex(2) ]
+                    hits[i][1] = [
+                        self.vh_info[f.vertex(0)],
+                        self.vh_info[f.vertex(1)],
+                        f.vertex(2),
+                    ]
 
             # have to go back through, and where successive items are faces, we must
             # have crossed cleanly through an edge, and that should be inserted, too
             return hits
 
-        def check_line_is_clear_new(self,n1=None,n2=None,v1=None,v2=None,p1=None,p2=None):
-            """ returns a list of vertex tuple for constrained segments that intersect
+        def check_line_is_clear_new(
+            self, n1=None, n2=None, v1=None, v2=None, p1=None, p2=None
+        ):
+            """returns a list of vertex tuple for constrained segments that intersect
             the given line.
             in the case of vertices that are intersected, just a tuple of length 1
             (and assumes that all vertices qualify as constrained)
@@ -1947,100 +2056,105 @@ try:
 
             # if points were given, create some temporary vertices
             if p1 is not None:
-                cp1 = Point_2( p1[0], p1[1] )
-                v1 = self.DT.insert(cp1) ; self.vh_info[v1] = 'tmp'
+                cp1 = Point_2(p1[0], p1[1])
+                v1 = self.DT.insert(cp1)
+                self.vh_info[v1] = "tmp"
 
             if p2 is not None:
-                cp2 = Point_2( p2[0], p2[1] )
-                v2 = self.DT.insert(cp2) ; self.vh_info[v2] = 'tmp'
+                cp2 = Point_2(p2[0], p2[1])
+                v2 = self.DT.insert(cp2)
+                self.vh_info[v2] = "tmp"
 
-            crossings = self.line_walk_edges_new(n1=n1,n2=n2,v1=v1,v2=v2)
+            crossings = self.line_walk_edges_new(n1=n1, n2=n2, v1=v1, v2=v2)
 
             constrained = []
-            for crossing_type,crossing in crossings:
-                if crossing_type == 'f':
+            for crossing_type, crossing in crossings:
+                if crossing_type == "f":
                     continue
-                if crossing_type == 'v':
-                    constrained.append( (crossing_type,crossing) )
+                if crossing_type == "v":
+                    constrained.append((crossing_type, crossing))
                     continue
-                if crossing_type == 'e':
-                    n1,n2 = crossing
+                if crossing_type == "e":
+                    n1, n2 = crossing
                     if self.verbose > 1:
-                        print("Got potential conflict with edge",n1,n2)
+                        print("Got potential conflict with edge", n1, n2)
                     try:
-                        self.find_edge( (n1,n2) )
-                        constrained.append( ('e',(n1,n2)) )
+                        self.find_edge((n1, n2))
+                        constrained.append(("e", (n1, n2)))
                     except trigrid.NoSuchEdgeError:
                         pass
 
             if p1 is not None:
                 del self.vh_info[v1]
-                self.DT.remove( v1 )
+                self.DT.remove(v1)
             if p2 is not None:
                 del self.vh_info[v2]
-                self.DT.remove( v2 )
+                self.DT.remove(v2)
             return constrained
-        
-        def check_line_is_clear_batch(self,p1,n2):
-            """ 
+
+        def check_line_is_clear_batch(self, p1, n2):
+            """
             When checking multiple nodes against the same point,
             may be faster to insert the point just once.
-            p1: [x,y] 
+            p1: [x,y]
             n2: [ node, node, ... ]
             Return true if segments from p1 to each node in n2 are
             all clear of constrained edges
             """
-            pnt = Point_2( p1[0], p1[1] )
+            pnt = Point_2(p1[0], p1[1])
             probe = self.DT.insert(pnt)
-            self.vh_info[probe] = 'PROBE!'
+            self.vh_info[probe] = "PROBE!"
 
             try:
                 for nbr in n2:
-                    crossings = self.check_line_is_clear_new( n1=nbr, v2=probe )
+                    crossings = self.check_line_is_clear_new(n1=nbr, v2=probe)
                     if len(crossings) > 0:
                         return False
             finally:
                 del self.vh_info[probe]
                 self.DT.remove(probe)
-                
+
             return True
-        
-        def check_line_is_clear(self,n1=None,n2=None,v1=None,v2=None,p1=None,p2=None):
-            """ returns a list of vertex tuple for constrained segments that intersect
+
+        def check_line_is_clear(
+            self, n1=None, n2=None, v1=None, v2=None, p1=None, p2=None
+        ):
+            """returns a list of vertex tuple for constrained segments that intersect
             the given line
             """
 
             # if points were given, create some temporary vertices
             if p1 is not None:
-                cp1 = Point_2( p1[0], p1[1] )
-                v1 = self.DT.insert(cp1) ; self.vh_info[v1] = 'tmp'
+                cp1 = Point_2(p1[0], p1[1])
+                v1 = self.DT.insert(cp1)
+                self.vh_info[v1] = "tmp"
 
             if p2 is not None:
-                cp2 = Point_2( p2[0], p2[1] )
-                v2 = self.DT.insert(cp2) ; self.vh_info[v2] = 'tmp'
+                cp2 = Point_2(p2[0], p2[1])
+                v2 = self.DT.insert(cp2)
+                self.vh_info[v2] = "tmp"
 
-            edges = self.line_walk_edges(n1=n1,n2=n2,v1=v1,v2=v2)
+            edges = self.line_walk_edges(n1=n1, n2=n2, v1=v1, v2=v2)
             constrained = []
-            for f,i in edges:
-                e = (f,i)
+            for f, i in edges:
+                e = (f, i)
 
                 if self.DT.is_constrained(e):
-                    vA = f.vertex( (i+1)%3 )
-                    vB = f.vertex( (i+2)%3 )
-                    print("Conflict info: ",self.vh_info[vA],self.vh_info[vB])
-                    constrained.append( (vA,vB) )
+                    vA = f.vertex((i + 1) % 3)
+                    vB = f.vertex((i + 2) % 3)
+                    print("Conflict info: ", self.vh_info[vA], self.vh_info[vB])
+                    constrained.append((vA, vB))
 
             if p1 is not None:
                 del self.vh_info[v1]
-                self.DT.remove( v1 )
+                self.DT.remove(v1)
             if p2 is not None:
                 del self.vh_info[v2]
-                self.DT.remove( v2 )
+                self.DT.remove(v2)
             return constrained
 
-    
-    LiveDtGrid=LiveDtCGAL
-        
+    LiveDtGrid = LiveDtCGAL
+
 except ImportError as exc:
     log.warning("CGAL unavailable.")
 
@@ -2050,183 +2164,187 @@ except ImportError as exc:
 # it just needs to supply a vertices() method which gives
 # the handles for the relevant vertices.
 
+
 class LiveDtPython(LiveDtGridBase):
-    vh_dtype=object
+    vh_dtype = object
 
     class Edge(object):
-        def __init__(self,g,j):
-            self.g=g
-            self.j=j
+        def __init__(self, g, j):
+            self.g = g
+            self.j = j
+
         def vertices(self):
-            return self.g.edges['nodes'][self.j]
-        
+            return self.g.edges["nodes"][self.j]
+
     def dt_allocate(self):
-        self.DT=exact_delaunay.Triangulation()
-    
+        self.DT = exact_delaunay.Triangulation()
+
     def dt_insert_constraint(self, a, b):
         self.DT.add_constraint(self.vh[a], self.vh[b])
-        
+
     def dt_remove_constraints(self, vh):
         """
         remove all constraints in which node n participates
         """
         # this used to pass the node, but it should be the vertex handle:
         for e in self.dt_incident_constraints(vh):
-            a,b = self.DT.edges['nodes'][e.j]
+            a, b = self.DT.edges["nodes"][e.j]
             self.DT.remove_constraint(j=e.j)
-            
+
     def dt_insert(self, n):
-        """ Given a point that is correctly in self.points, and vh that
+        """Given a point that is correctly in self.points, and vh that
         is large enough, do the work of inserting the node and updating
         the vertex handle.
         """
         # pnt = Point_2( self.points[n,0], self.points[n,1] )
-        xy=[self.points[n,0],self.points[n,1]]
+        xy = [self.points[n, 0], self.points[n, 1]]
         self.vh[n] = self.DT.add_node(x=xy)
         self.vh_info[self.vh[n]] = n
         if self.verbose > 2:
-            print("    dt_insert node %d"%n)
+            print("    dt_insert node %d" % n)
             self.check()
-            
-    def dt_remove(self,n):
-        self.DT.delete_node( self.vh[n] )
+
+    def dt_remove(self, n):
+        self.DT.delete_node(self.vh[n])
         del self.vh_info[self.vh[n]]
-        self.vh[n] = None # had been 0, but that's a valid index
+        self.vh[n] = None  # had been 0, but that's a valid index
         if self.verbose > 2:
-            print("    dt_remove node %d"%n)
+            print("    dt_remove node %d" % n)
             self.check()
-            
-    def dt_remove_constrained_edge(self,edge):
+
+    def dt_remove_constrained_edge(self, edge):
         self.DT.remove_constraint(j=edge.j)
 
-    def dt_incident_constraints(self,vh):
-        return [self.Edge(g=self.DT,j=e)
-                for e in self.DT.node_to_constraints(vh)]
+    def dt_incident_constraints(self, vh):
+        return [self.Edge(g=self.DT, j=e) for e in self.DT.node_to_constraints(vh)]
 
     def dt_cell_node_iter(self):
-        """ generator for going over finite cells, returning 
+        """generator for going over finite cells, returning
         nodes as triples
         """
         for c in self.DT.valid_cell_iter():
-            yield [self.vh_info[n] for n in self.DT.cells['nodes'][c,:3]]
-    
+            yield [self.vh_info[n] for n in self.DT.cells["nodes"][c, :3]]
+
     def delaunay_face(self, pnt):
-        """ 
+        """
         Returns node indices making up the face of the DT in which pnt lies.
         Always returns 3 items, but any number of them could be None.
-        In the case that pnt is on an edge or vertex adjacent to a cell, 
+        In the case that pnt is on an edge or vertex adjacent to a cell,
         then all three of the cell's nodes are returned, though the specific
         choice of cell is arbitrary.  Not sure if that's the right behavior
         for the current usage of delaunay_face()
         """
-        face,loc_type,loc_index = self.DT.locate(pnt)
+        face, loc_type, loc_index = self.DT.locate(pnt)
         if face != self.DT.INF_CELL:
-            nodes = [self.vh_info[n] for n in self.DT.cells['nodes'][face]]
+            nodes = [self.vh_info[n] for n in self.DT.cells["nodes"][face]]
         elif loc_type == self.DT.IN_VERTEX:
-            nodes = [self.vh_info[loc_index],None,None]
+            nodes = [self.vh_info[loc_index], None, None]
         elif loc_type == self.DT.IN_EDGE:
-            e_nodes=self.DT.edges['nodes'][loc_index]
-            nodes = [self.vh_info[e_nodes[0]],
-                     self.vh_info[e_nodes[1]],
-                     None]
+            e_nodes = self.DT.edges["nodes"][loc_index]
+            nodes = [self.vh_info[e_nodes[0]], self.vh_info[e_nodes[1]], None]
         else:
-            return [None,None,None]
+            return [None, None, None]
         return n
 
     def delaunay_neighbors(self, n):
-        """ returns an ndarray of node ids that the DT connects the given node
+        """returns an ndarray of node ids that the DT connects the given node
         to.  Includes existing edges.
         """
         # some callers assume this is an ndarray
-        return np.array( [self.vh_info[vh]
-                          for vh in self.DT.node_to_nodes(self.vh[n]) ] )
+        return np.array([self.vh_info[vh] for vh in self.DT.node_to_nodes(self.vh[n])])
 
-    def plot_dt(self,clip=None):
-        self.DT.plot_edges(clip=clip,color='m')
-        
-    def shoot_ray(self,n1,vec,max_dist=1e6):
-        """ Shoot a ray from self.points[n] in the given direction vec
+    def plot_dt(self, clip=None):
+        self.DT.plot_edges(clip=clip, color="m")
+
+    def shoot_ray(self, n1, vec, max_dist=1e6):
+        """Shoot a ray from self.points[n] in the given direction vec
         returns (e_index,pnt), the first edge that it encounters and the location
-        of the intersection. 
+        of the intersection.
 
         max_dist: stop checking beyond this distance -- currently doesn't make it faster
           but will return None,None if the point that it finds is too far away
         """
         # is it just constrained edges? yes -- just an "edge" in self, but a constrained
         # edge in self.DT.
-        nA=self.vh[n1] # map to DT node
+        nA = self.vh[n1]  # map to DT node
         # construct target point
-        probe=self.DT.nodes['x'][nA] + max_dist*utils.to_unit(vec)
-        
-        for elt_type,elt_idx in self.DT.gen_intersected_elements(nA=nA,pB=probe):
-            if elt_type=='node':
-                if elt_idx==nA:
+        probe = self.DT.nodes["x"][nA] + max_dist * utils.to_unit(vec)
+
+        for elt_type, elt_idx in self.DT.gen_intersected_elements(nA=nA, pB=probe):
+            if elt_type == "node":
+                if elt_idx == nA:
                     continue
                 else:
                     # means that we went exactly through some node, and
                     # the caller probably would just want one of the edges of that
                     # node that is facing nA.
-                    X=self.DT.nodes['x'][elt_idx]
+                    X = self.DT.nodes["x"][elt_idx]
                     # a bit awkward, as we likely have come in on an unconstrained
                     # edge of the DT, so no cell info to help, and there could be
                     # many constrained edges to choose from, but we want one of the
                     # the two that face p
-                    n=self.vh_info[elt_idx] # get back to the grid's node index
+                    n = self.vh_info[elt_idx]  # get back to the grid's node index
 
-                    adj_nodes=self.DT.angle_sort_adjacent_nodes(elt_idx)
+                    adj_nodes = self.DT.angle_sort_adjacent_nodes(elt_idx)
                     # probably overkill -
                     # iterate through adjacent DT nodes, checking orientation
                     # relative to nA, stop when a pair of successive edges
                     # brackets nA.
-                    orientations=[] #  [(adj_DT_node_index, orientation), ...]
-                    for i_adj,n_adj in enumerate(adj_nodes):
-                        j=self.DT.nodes_to_edge(elt_idx,n_adj)
-                        if not self.DT.edges['constrained'][j]:
+                    orientations = []  #  [(adj_DT_node_index, orientation), ...]
+                    for i_adj, n_adj in enumerate(adj_nodes):
+                        j = self.DT.nodes_to_edge(elt_idx, n_adj)
+                        if not self.DT.edges["constrained"][j]:
                             continue
                         # looking for a transition from >0 to <=0
-                        ori=robust_predicates.orientation(self.DT.nodes['x'][nA],
-                                                          self.DT.nodes['x'][elt_idx],
-                                                          self.DT.nodes['x'][n_adj])
+                        ori = robust_predicates.orientation(
+                            self.DT.nodes["x"][nA],
+                            self.DT.nodes["x"][elt_idx],
+                            self.DT.nodes["x"][n_adj],
+                        )
                         if len(orientations):
-                            if orientations[-1][1]>0 and ori<=0:
-                                my_j = self.find_edge([n,self.vh_info[n_adj]])
-                                return (my_j,X)
-                        
-                        orientations.append( (n_adj,ori) )
+                            if orientations[-1][1] > 0 and ori <= 0:
+                                my_j = self.find_edge([n, self.vh_info[n_adj]])
+                                return (my_j, X)
+
+                        orientations.append((n_adj, ori))
                     # node with no constrained edges -- we were called with bad
                     # state?  shouldn't leave nodes hanging around
-                    assert len(orientations)>0
-                    if len(orientations)==1:
-                        sel=0
+                    assert len(orientations) > 0
+                    if len(orientations) == 1:
+                        sel = 0
                     else:
                         # we checked all other pairs - must be this one
-                        assert orientations[-1][1]>0 and orientations[0][1]<=0
-                        sel=0
-                    my_j = self.find_edge([n,self.vh_info[orientations[sel][0]]])
-                    return (my_j,X)
-                        
-            elif elt_type=='cell':
-                continue
-            elif elt_type=='edge':
-                if self.DT.edges['constrained'][elt_idx.j]:
-                    he=elt_idx # pretty sure the half-edge is facing nA
-                    n_left=self.vh_info[he.node_fwd()]
-                    n_right=self.vh_info[he.node_rev()]
+                        assert orientations[-1][1] > 0 and orientations[0][1] <= 0
+                        sel = 0
+                    my_j = self.find_edge([n, self.vh_info[orientations[sel][0]]])
+                    return (my_j, X)
 
-                    j=self.find_edge([n_left,n_right])
+            elif elt_type == "cell":
+                continue
+            elif elt_type == "edge":
+                if self.DT.edges["constrained"][elt_idx.j]:
+                    he = elt_idx  # pretty sure the half-edge is facing nA
+                    n_left = self.vh_info[he.node_fwd()]
+                    n_right = self.vh_info[he.node_rev()]
+
+                    j = self.find_edge([n_left, n_right])
 
                     # Construct point of intersection
-                    X=ray_intersection(self.points[n1],vec,
-                                       self.points[n_left],self.points[n_right])
-                    return (j,X)
+                    X = ray_intersection(
+                        self.points[n1], vec, self.points[n_left], self.points[n_right]
+                    )
+                    return (j, X)
                 else:
                     continue
             else:
-                assert False # sanity...
-        return None,None # didn't hit any constrained edges or nodes within the alloted distance
-        
-    def check_line_is_clear(self,n1=None,n2=None,v1=None,v2=None,p1=None,p2=None):
-        """ returns a list of vertex tuple for constrained segments that intersect
+                assert False  # sanity...
+        return (
+            None,
+            None,
+        )  # didn't hit any constrained edges or nodes within the alloted distance
+
+    def check_line_is_clear(self, n1=None, n2=None, v1=None, v2=None, p1=None, p2=None):
+        """returns a list of vertex tuple for constrained segments that intersect
         the given line.
 
         n1: specify one end of the segment by a node index in self
@@ -2241,61 +2359,60 @@ class LiveDtPython(LiveDtGridBase):
         # one quirk is that traversing along an edge is implied by sequential
         # nodes.
         # also edges are returned as half-edges
-        
+
         # from the CGAL implementation:
         # if points were given, create some temporary vertices.
-        temp_dt_nodes=[]
-        
+        temp_dt_nodes = []
+
         if p1 is not None:
             assert n1 is None
             assert v1 is None
             v1 = self.DT.add_node(x=p1)
-            self.vh_info[v1] = 'tmp'
+            self.vh_info[v1] = "tmp"
             temp_dt_nodes.append(v1)
 
         if p2 is not None:
             assert n2 is None
             assert v2 is None
             v2 = self.DT.add_node(x=p2)
-            self.vh_info[v2] = 'tmp'
+            self.vh_info[v2] = "tmp"
             temp_dt_nodes.append(v2)
 
         if v1 is None:
             assert n1 is not None
-            v1=self.vh[n1]
+            v1 = self.vh[n1]
         if v2 is None:
             assert n2 is not None
-            v2=self.vh[n2]
-        
-        crossings = self.DT.find_intersected_elements(v1,v2)
+            v2 = self.vh[n2]
 
-        constr_pairs=[]
+        crossings = self.DT.find_intersected_elements(v1, v2)
+
+        constr_pairs = []
 
         # crossings includes the starting and ending node, which we don't
         # care about
-        for ctype,cindex in crossings[1:-1]:
-            if ctype=='node':
-                n=cindex
+        for ctype, cindex in crossings[1:-1]:
+            if ctype == "node":
+                n = cindex
                 # may have to adjust this to be more in line with older code
                 # it's a conflict if a proposed edge goes exactly through an existing
                 # vertex, so we return a conflict based on the same vertex repeated
                 # this doesn't directly include the case where the query segment
                 # is coincident with an edge, but for the purpose of check_line_is_clear,
                 # it's enough to avoid vertices and crossing constrained edges.
-                constr_pairs.append( [self.vh_info[n],self.vh_info[n]] )
-            elif ctype=='edge':
-                j=cindex.j
-                if self.DT.edges['constrained'][cindex.j]:
+                constr_pairs.append([self.vh_info[n], self.vh_info[n]])
+            elif ctype == "edge":
+                j = cindex.j
+                if self.DT.edges["constrained"][cindex.j]:
                     # yep, crossing a constrained edge
-                    pair=[self.vh_info[vh]
-                          for vh in self.DT.edges['nodes'][cindex.j]]
+                    pair = [self.vh_info[vh] for vh in self.DT.edges["nodes"][cindex.j]]
                     constr_pairs.append(pair)
-            elif ctype=='cell':
+            elif ctype == "cell":
                 # don't care about passing through cells
                 pass
             else:
                 assert False
-        
+
         # clean up
         for v in temp_dt_nodes:
             self.DT.delete_node(v)
@@ -2303,31 +2420,32 @@ class LiveDtPython(LiveDtGridBase):
 
         return constr_pairs
 
-    def check_line_is_clear_batch(self,p1,n2):
-        """ 
+    def check_line_is_clear_batch(self, p1, n2):
+        """
         When checking multiple nodes against the same point,
         may be faster to insert the point just once.
-        p1: [x,y] 
+        p1: [x,y]
         n2: [ node, node, ... ]
         Return true if segments from p1 to each node in n2 are
         all clear of constrained edges
         """
         for nbr in n2:
-            crossings = self.check_line_is_clear( n1=nbr, p2=p1 )
+            crossings = self.check_line_is_clear(n1=nbr, p2=p1)
             if len(crossings) > 0:
                 return False
 
         return True
 
-    def check_line_is_clear_new(self,*a,**k):
+    def check_line_is_clear_new(self, *a, **k):
         # cruft, but not quite ready to get rid of this in CGAL
         # before more testing
-        return self.check_line_is_clear(*a,**k)
-    
-if LiveDtGrid==LiveDtGridNull:
-    LiveDtGrid=LiveDtPython
+        return self.check_line_is_clear(*a, **k)
 
-    
+
+if LiveDtGrid == LiveDtGridNull:
+    LiveDtGrid = LiveDtPython
+
+
 # how many of these are actually used?
 # shoot_ray: definitely used in paver.py
 # line_walk_edges:

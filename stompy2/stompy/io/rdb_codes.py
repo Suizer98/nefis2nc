@@ -10,7 +10,7 @@ import numpy as np
 import io
 
 # copied from http://help.waterdata.usgs.gov/stat_code
-stat_cd_tabbed="""00001	MAXIMUM	MAXIMUM VALUES
+stat_cd_tabbed = """00001	MAXIMUM	MAXIMUM VALUES
 00002	MINIMUM	MINIMUM VALUES
 00003	MEAN	MEAN VALUES
 00004	AM	VALUES TAKEN BETWEEN 0001 AND 1200
@@ -1012,8 +1012,6 @@ stat_cd_tabbed="""00001	MAXIMUM	MAXIMUM VALUES
 01983	98.3 PERCENTILE	98.3 PERCENTILE"""
 
 
-
-
 #
 # USGS Parameter Code Definitions File
 #
@@ -1029,38 +1027,45 @@ stat_cd_tabbed="""00001	MAXIMUM	MAXIMUM VALUES
 
 # This used to use an embedded string, but the real file is quite large and better
 # managed as a separate, tab-separated-value file.
-code_fn=os.path.join(os.path.dirname(__file__),'usgs_parm_codes.tsv')
+code_fn = os.path.join(os.path.dirname(__file__), "usgs_parm_codes.tsv")
 
-_parm_codes=None
-def parm_codes(): 
+_parm_codes = None
+
+
+def parm_codes():
     global _parm_codes
     if _parm_codes is None:
-        df=pd.read_csv(code_fn,
-                       comment='#',sep="\t",skiprows=[16])
-        _parm_codes=df.set_index('parameter_cd')
-        
+        df = pd.read_csv(code_fn, comment="#", sep="\t", skiprows=[16])
+        _parm_codes = df.set_index("parameter_cd")
+
     return _parm_codes
 
-_stat_codes=None
+
+_stat_codes = None
+
+
 def stat_codes():
     global _stat_codes
     if _stat_codes is None:
-        fp=io.StringIO(stat_cd_tabbed)
-        df=pd.read_csv(fp,comment='#',sep="\t",header=None,
-                       names=['stat_cd','name','desc'])
-        _stat_codes=df.set_index('stat_cd')
+        fp = io.StringIO(stat_cd_tabbed)
+        df = pd.read_csv(
+            fp, comment="#", sep="\t", header=None, names=["stat_cd", "name", "desc"]
+        )
+        _stat_codes = df.set_index("stat_cd")
     return _stat_codes
+
 
 ################################################################################
 
+
 def sanitize_code(code):
-    """ Make a canonical text version of a code - a 5 digit, 0-padded string
-    """
+    """Make a canonical text version of a code - a 5 digit, 0-padded string"""
     try:
-        code = "%05i"%code
+        code = "%05i" % code
     except TypeError:
-        code=str(code)
+        code = str(code)
     return code
+
 
 # Simple parsing (this could be cleaner with pandas or other higher-level interface)
 def stat_code_lookup(code):
@@ -1074,9 +1079,10 @@ def stat_code_lookup(code):
     except KeyError:
         return None
 
+
 def parm_code_lookup(code):
     try:
-        #return list(parm_cds['parm_cd']).index(code)
+        # return list(parm_cds['parm_cd']).index(code)
         return parm_codes().loc[int(code)]
     except KeyError:
         return None

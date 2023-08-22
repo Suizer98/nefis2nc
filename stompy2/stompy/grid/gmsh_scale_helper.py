@@ -12,14 +12,14 @@ import struct
 import sys
 import math
 
-pkl_file=sys.argv[1]
-with open(pkl_file,'rb') as fp:
-    scale=pickle.load(fp)
-    
+pkl_file = sys.argv[1]
+with open(pkl_file, "rb") as fp:
+    scale = pickle.load(fp)
+
 while True:
     xyz = struct.unpack("ddd", sys.stdin.buffer.read(24))
     if math.isnan(xyz[0]):
         break
     f = scale(xyz[:2])
-    sys.stdout.buffer.write(struct.pack("d",f))
+    sys.stdout.buffer.write(struct.pack("d", f))
     sys.stdout.flush()

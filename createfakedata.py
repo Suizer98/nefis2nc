@@ -147,40 +147,40 @@ def create_organised_trihnc(datfile, deffile, outputfile):
     tunit = nc.variables["tunit"][0]
     dt = nc.variables["dt"][0]
     ithisc = nc.variables["ithisc"][:]
-    time = convert_time_step(ITDATE, tunit, dt, ithisc)[:5]
+    time = convert_time_step(ITDATE, tunit, dt, ithisc)[:3]
 
     # Access the 'xy' variable
-    his_const_xystat_var = nc.variables["his-const_xystat"][:5]
+    his_const_xystat_var = nc.variables["his-const_xystat"][:3]
     x = his_const_xystat_var[:, 0]
     y = his_const_xystat_var[:, 1]
-    latitudes = x
-    longitudes = y
+    longitudes = x
+    latitudes = y
 
     # Access the 'water_level' variable
     # water_levels = nc.variables["zwl"][:5]
 
     import random
 
-    num_rows = 5
-    num_cols = 5
+    num_rows = 3
+    num_cols = 3
     water_levels = [
         [random.uniform(-5, 5) for _ in range(num_cols)] for _ in range(num_rows)
     ]
 
     # Access the 'depth' variable
-    depths = nc.variables["his-const_dps"][:5]
+    depths = nc.variables["his-const_dps"][:3]
 
     # Convert platform_names to fixed-length strings
-    platform_names = nc.variables["namst"][:5]
+    platform_names = nc.variables["namst"][:3]
     platform_names = np.array(
         [[s.encode("utf-8") for s in row] for row in platform_names]
     )
 
     # Access the 'platform_angle' variable
-    platform_angle = nc.variables["alfas"][:5]
+    platform_angle = nc.variables["alfas"][:3]
 
     # Access the 'platform_m_index' and 'platform_n_index' variable
-    his_const_mnstat_var = nc.variables["his-const_mnstat"][:5]
+    his_const_mnstat_var = nc.variables["his-const_mnstat"][:3]
     m = his_const_mnstat_var[:, 0]
     n = his_const_mnstat_var[:, 1]
     platform_m_index = m
@@ -224,7 +224,7 @@ def create_organised_trihnc(datfile, deffile, outputfile):
     platform_name_binary_var = dataset.createVariable(
         "platform_name", "S1", ("Station", "name_strlen")
     )
-    platform_name_binary_var[:] = nc.variables["namst"][:5]
+    platform_name_binary_var[:] = nc.variables["namst"][:3]
 
     # Create variable for 'water_level'
     dataset.createVariable("waterlevel", float, ("time", "Station"))
@@ -265,9 +265,9 @@ def create_organised_trihnc(datfile, deffile, outputfile):
     print("NetCDF file has been created.")
 
 
-def testfakedata(self, input):
+def testfakedata(input):
     # get file
-    file2read = xr.open_dataset(testDirectory + "fake-trih.nc")
+    file2read = xr.open_dataset(input)
 
     # station variables
     time_array = file2read["time"].values

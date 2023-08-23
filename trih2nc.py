@@ -151,8 +151,8 @@ def create_organised_trihnc(datfile, deffile, outputfile):
     his_const_xystat_var = nc.variables["his-const_xystat"]
     x = his_const_xystat_var[:, 0]
     y = his_const_xystat_var[:, 1]
-    latitudes = x
-    longitudes = y
+    longitudes = x
+    latitudes = y
 
     # Access the 'water_level' variable
     water_levels = nc.variables["zwl"][:]

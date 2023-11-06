@@ -30,6 +30,7 @@ def to_bytes(s):
 
 log = logging.getLogger(__name__)
 
+import ctypes
 from ctypes import *
 
 
@@ -47,15 +48,21 @@ def load_nef_lib():
     return None if the DLL cannot be found
     """
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    nefis_dll_path = os.path.join(script_dir, "nefis.dll")
+    if sys.platform.startswith("linux"):
+        nefis_dll_path = os.path.join(script_dir, "libNefis.so")
+    if sys.platform.startswith("win32"):
+        nefis_dll_path = os.path.join(script_dir, "nefis.dll")
 
     if os.path.exists(nefis_dll_path):
         try:
-            return cdll.LoadLibrary(nefis_dll_path)
+            return ctypes.CDLL(nefis_dll_path, ctypes.RTLD_GLOBAL)
         except OSError:
-            log.warning("Failed to load nefis DLL - read/write not enabled")
-            log.warning("Used nefis.dll in the script directory")
-            return None
+            try:
+                return ctypes.CDLL(nefis_dll_path)
+            except OSError:
+                log.warning("Failed to load nefis DLL - read/write not enabled")
+                log.warning("Used nefis.dll in the script directory")
+                return None
 
     if "NEFIS_LIB" in os.environ:
         try:
@@ -68,6 +75,8 @@ def load_nef_lib():
 
     if sys.platform.startswith("linux"):
         basenames = ["libNefisSO.so", "libnefis.so"]
+    if sys.platform.startswith("win32"):
+        basenames = ["nefis.dll"]
     elif sys.platform == "darwin":
         # this is for OSX
         basenames = ["libNefisSO.dylib"]

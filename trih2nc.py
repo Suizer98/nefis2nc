@@ -255,7 +255,7 @@ def create_organised_trihnc(datfile, deffile, outputfile):
     print("NetCDF file has been created.")
 
 
-testDirectory = os.path.join(os.getcwd(), "testdata/")
+testDirectory = os.path.join(os.getcwd(), "tests/testdata/")
 gg = create_organised_trihnc(
     testDirectory + "trih-scsmCddb.dat",
     testDirectory + "trih-scsmCddb.def",

@@ -122,14 +122,8 @@ ImportError: DLL load failed: The network path was not found.
 ```
 
 - This issue maybe coming from stompy repo's 'nefis_nc.py' which involved scipy library
-- Then switching to conda is good option, in your terminal:
+- Then switching to conda is good option, in your terminal then run 'nefis2nc.bat':
 
 ```
 conda create --name nefis2nc python=2.7
-conda activate nefis2nc
-cd stompy
-pip install -e .
 ```
-
-
-

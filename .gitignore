@@ -1,4 +1,3 @@
-.testdata/output-trih-final.nc
-.testdata/output-trim-final.nc
+.tests/testdata/
 .idea/
 .venv/

@@ -1,17 +1,10 @@
 import os
-import sys
-import logging
-import subprocess
-
-log = logging.getLogger(__name__)
-
 import ctypes
 from ctypes import *
 
-
 def load_nef_lib():
     """
-    Find and load the dll for NEFIS.
+    Find and load the DLL for NEFIS.
     This has to come from a compiled D-WAQ installation.
 
     Tries these locations:
@@ -21,8 +14,9 @@ def load_nef_lib():
 
     return None if the DLL cannot be found
     """
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    nefis_dll_path = os.path.join(script_dir, "libNefis.so")
+    script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    # nefis_dll_path = os.path.join(script_dir, "libs", "libNefis.so")
+    nefis_dll_path = os.path.join(script_dir, "libs", "nefis.dll")
 
     if os.path.exists(nefis_dll_path):
         try:
@@ -30,11 +24,9 @@ def load_nef_lib():
         except OSError:
             log.warning("Failed to load nefis DLL - read/write not enabled")
             log.warning("Used nefis.dll in the script directory")
-            return cdll.LoadLibrary(nefis_dll_path)
+            return ctypes.CDLL(nefis_dll_path)
 
-
-_nef_lib = False  # False=> uninitialized, None=> not found
-
+_nef_lib = False  # False => uninitialized, None => not found
 
 def nef_lib():
     global _nef_lib
@@ -42,13 +34,12 @@ def nef_lib():
         _nef_lib = load_nef_lib()
     return _nef_lib
 
+# Load the nefis library
+nefis_lib = nef_lib()
 
-script_dir = os.path.dirname(os.path.abspath(__file__))
-nefis_dll_path = os.path.join(script_dir, "libNefis.so")
-nefis_lib = ctypes.CDLL(nefis_dll_path, ctypes.RTLD_GLOBAL)
+if nefis_lib:
+    # Use dir() to list available functions
+    available_functions = [func for func in dir(nefis_lib) if callable(getattr(nefis_lib, func))]
 
-# Now you can use functions from the loaded library
-print(nefis_lib)
-print(nefis_lib.Clsnef())
-a = cdll.LoadLibrary(nefis_lib)
-a.Clsnef()
+    for func in available_functions:
+        print("Function: {}".format(func))

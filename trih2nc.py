@@ -1,8 +1,10 @@
 from stompy.model.delft.nefis import Nefis
 from stompy.model.delft.nefis_nc import nefis_to_nc
+
 import netCDF4
 import numpy as np
 import os
+import sys
 from datetime import datetime, timedelta
 
 
@@ -255,9 +257,20 @@ def create_organised_trihnc(datfile, deffile, outputfile):
     print("NetCDF file has been created.")
 
 
-testDirectory = os.path.join(os.getcwd(), "tests/testdata/")
-gg = create_organised_trihnc(
-    testDirectory + "trih-scsmCddb.dat",
-    testDirectory + "trih-scsmCddb.def",
-    testDirectory + "output-trih-final.nc",
-)
+if __name__ == "__main__":
+    if len(sys.argv) != 4:
+        print("Usage: python trih2nc.py datfile deffile outputfile")
+        sys.exit(1)
+
+    datfile = sys.argv[1]
+    deffile = sys.argv[2]
+    outputfile = sys.argv[3]
+
+    create_organised_trihnc(datfile, deffile, outputfile)
+
+# testDirectory = os.path.join(os.getcwd(), "tests/testdata/")
+# gg = create_organised_trihnc(
+#     testDirectory + "trih-scsmCddb.dat",
+#     testDirectory + "trih-scsmCddb.def",
+#     testDirectory + "output-trih-final.nc",
+# )

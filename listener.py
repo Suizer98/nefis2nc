@@ -1,4 +1,5 @@
 import os
+import subprocess
 
 folder_path = "D:/Sea4cast/Sea4cast/Delft3D-sample/For Hengkek/Sample setup and simulation"
 
@@ -6,6 +7,8 @@ trih_dat_file = None
 trih_def_file = None
 trim_dat_file = None
 trim_def_file = None
+output_path = os.path.join(os.getcwd(), "tests/testdata/")
+output_file = os.path.join(output_path, "test-trih.nc")
 
 # Iterate through the files in the folder
 for root, dirs, files in os.walk(folder_path):
@@ -27,3 +30,7 @@ print("trih_dat_file:", trih_dat_file)
 print("trih_def_file:", trih_def_file)
 print("trim_dat_file:", trim_dat_file)
 print("trim_def_file:", trim_def_file)
+
+# Check if trih_dat_file and trih_def_file are not None
+if trih_dat_file is not None and trih_def_file is not None:
+    subprocess.call(["python", "trih2nc.py", trih_dat_file, trih_def_file, output_file])

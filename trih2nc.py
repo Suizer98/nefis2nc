@@ -185,7 +185,7 @@ def create_organised_trihnc(datfile, deffile, outputfile):
     # u_z = nc.variables['zcurw'][:]
 
     # Add global attribute
-    dataset.setncattr("title", "NetCDF created from NEFIS-file {} (libNefis)".format(datfile))
+    dataset.setncattr("title", "NetCDF created from NEFIS-file {}".format(datfile))
 
     # Add dimensions to the dataset
     dataset.createDimension("x", len(latitudes))

@@ -29,7 +29,7 @@ RUN python2.7 get-pip.py
 
 COPY . .
 
-WORKDIR /app/stompy2
+WORKDIR /app/stompy
 RUN pip2 install --upgrade setuptools
 RUN pip2 install -e .
 RUN pip2 install configparser

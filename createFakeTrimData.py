@@ -198,7 +198,7 @@ def create_organised_trimnc(datfile, deffile, outputfile):
     # latitude = rollrep(latitude)
 
     # Add global attribute
-    dst_ds.setncattr("title", "NetCDF created from NEFIS-file {}".format(datfile))
+    dst_ds.setncattr("title", "NetCDF created from NEFIS-file trim fake-data")
 
     # Add dimensions to the dataset
     dst_ds.createDimension("time", len(time))

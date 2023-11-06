@@ -315,7 +315,7 @@ def create_organised_trimnc(datfile, deffile, outputfile):
     print("NetCDF file has been created.")
 
 
-testDirectory = os.path.join(os.getcwd(), "testdata/")
+testDirectory = os.path.join(os.getcwd(), "tests/testdata/")
 # gg1 = create_raw_nc(
 #     testDirectory + "trim-scsmCddb.dat",
 #     testDirectory + "trim-scsmCddb.def",

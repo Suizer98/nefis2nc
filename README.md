@@ -125,9 +125,10 @@ ImportError: DLL load failed: The network path was not found.
 - Then switching to conda is good option, in your terminal:
 
 ```
-conda create --name testenv python=2.7
-conda activate testenv
-conda install scipy
+conda create --name nefis2nc python=2.7
+conda activate nefis2nc
+cd stompy
+pip install -e .
 ```
 
 

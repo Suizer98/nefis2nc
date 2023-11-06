@@ -312,7 +312,7 @@ def testfakedata(input):
         print("Error")
 
 
-testDirectory = os.path.join(os.getcwd(), "testdata/")
+testDirectory = os.path.join(os.getcwd(), "tests/testdata/")
 # gg1 = create_raw_nc(
 #     testDirectory + "trih-scsmCddb.dat",
 #     testDirectory +"trih-scsmCddb.def",

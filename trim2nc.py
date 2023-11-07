@@ -3,6 +3,7 @@ from stompy.model.delft.nefis_nc import nefis_to_nc
 import netCDF4
 import numpy as np
 import os
+import sys
 from datetime import datetime, timedelta
 
 
@@ -312,17 +313,28 @@ def create_organised_trimnc(datfile, deffile, outputfile):
 
     src_ds.close()
     dst_ds.close()
-    print("NetCDF file has been created.")
+    print("Trim NetCDF file has been created.")
 
 
-testDirectory = os.path.join(os.getcwd(), "tests/testdata/")
-# gg1 = create_raw_nc(
+if __name__ == "__main__":
+    if len(sys.argv) != 4:
+        print("Usage: python trim2nc.py datfile deffile outputfile")
+        sys.exit(1)
+
+    datfile = sys.argv[1]
+    deffile = sys.argv[2]
+    outputfile = sys.argv[3]
+
+    create_organised_trimnc(datfile, deffile, outputfile)
+
+# testDirectory = os.path.join(os.getcwd(), "tests/testdata/")
+# # gg1 = create_raw_nc(
+# #     testDirectory + "trim-scsmCddb.dat",
+# #     testDirectory + "trim-scsmCddb.def",
+# #     testDirectory + "output-trim.nc"
+# # )
+# gg = create_organised_trimnc(
 #     testDirectory + "trim-scsmCddb.dat",
 #     testDirectory + "trim-scsmCddb.def",
-#     testDirectory + "output-trim.nc"
+#     testDirectory + "output-trim-final.nc",
 # )
-gg = create_organised_trimnc(
-    testDirectory + "trim-scsmCddb.dat",
-    testDirectory + "trim-scsmCddb.def",
-    testDirectory + "output-trim-final.nc",
-)

@@ -254,7 +254,7 @@ def create_organised_trihnc(datfile, deffile, outputfile):
     # Close the dataset to ensure the file is saved
     nc.close()
     dataset.close()
-    print("NetCDF file has been created.")
+    print("Trih NetCDF file has been created.")
 
 
 if __name__ == "__main__":

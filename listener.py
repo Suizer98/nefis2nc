@@ -8,7 +8,8 @@ trih_def_file = None
 trim_dat_file = None
 trim_def_file = None
 output_path = os.path.join(os.getcwd(), "tests/testdata/")
-output_file = os.path.join(output_path, "test-trih.nc")
+output_trih_file = os.path.join(output_path, "test-trih.nc")
+output_trim_file = os.path.join(output_path, "test-trim.nc")
 
 # Iterate through the files in the folder
 for root, dirs, files in os.walk(folder_path):
@@ -33,4 +34,6 @@ print("trim_def_file:", trim_def_file)
 
 # Check if trih_dat_file and trih_def_file are not None
 if trih_dat_file is not None and trih_def_file is not None:
-    subprocess.call(["python", "trih2nc.py", trih_dat_file, trih_def_file, output_file])
+    subprocess.call(["python", "trih2nc.py", trih_dat_file, trih_def_file, output_trih_file])
+if trim_dat_file is not None and trim_def_file is not None:
+    subprocess.call(["python", "trim2nc.py", trim_dat_file, trim_def_file, output_trim_file])

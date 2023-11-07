@@ -1,5 +1,6 @@
 from stompy.model.delft.nefis import Nefis
 from stompy.model.delft.nefis_nc import nefis_to_nc
+
 import netCDF4
 import numpy as np
 import os

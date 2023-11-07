@@ -2,12 +2,12 @@ import os
 import subprocess
 
 folder_path = "D:/Sea4cast/Sea4cast/Delft3D-sample/For Hengkek/Sample setup and simulation"
+output_path = os.path.join(os.getcwd(), "tests/testdata/")
 
 trih_dat_file = None
 trih_def_file = None
 trim_dat_file = None
 trim_def_file = None
-output_path = os.path.join(os.getcwd(), "tests/testdata/")
 output_trih_file = os.path.join(output_path, "test-trih.nc")
 output_trim_file = os.path.join(output_path, "test-trim.nc")
 

@@ -1,0 +1,33 @@
+name: nefis2nc
+channels:
+  - defaults
+dependencies:
+  - blas=1.0=mkl
+  - ca-certificates=2023.08.22=haa95532_0
+  - certifi=2020.6.20=pyhd3eb1b0_3
+  - icc_rt=2022.1.0=h6049295_2
+  - intel-openmp=2022.0.0=haa95532_3663
+  - mkl=2020.2=256
+  - pip=19.3.1=py27_0
+  - python=2.7.18=hfb89ab9_0
+  - setuptools=44.0.0=py27_0
+  - sqlite=3.30.1=h0c8e037_0
+  - vc=9=h2eaa2aa_6
+  - vs2008_runtime=9.00.30729.1=haa95532_6
+  - wheel=0.37.1=pyhd3eb1b0_0
+  - wincertstore=0.2=py27hf04cefb_0
+  - pip:
+      - backports-functools-lru-cache==1.6.6
+      - cycler==0.10.0
+      - gdal==2.2.4
+      - kiwisolver==1.1.0
+      - matplotlib==2.2.5
+      - netcdf4==1.1.7
+      - numpy==1.16.6
+      - pyparsing==2.4.7
+      - python-dateutil==2.8.2
+      - pytz==2023.3.post1
+      - scipy==1.2.3
+      - shapely==1.6.4.post2
+      - six==1.16.0
+prefix: D:\Miniconda\envs\nefis2nc

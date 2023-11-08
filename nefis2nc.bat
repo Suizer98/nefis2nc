@@ -1,5 +1,8 @@
 @echo on
 
+:: Create env
+call conda create --name nefis2nc python=2.7
+
 :: Activate environment
 call conda activate nefis2nc
 
@@ -24,6 +27,7 @@ for %%I in (whls\*.whl) do (
 
 :: Specifically conda install scipy to resolve dll issue
 call conda install --yes scipy
+call conda install --yes autopep8
 
 :: Deactivate the Conda environment
 call conda deactivate

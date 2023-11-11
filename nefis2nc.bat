@@ -1,7 +1,7 @@
 @echo on
 
 :: Create env
-call conda create --name nefis2nc python=2.7
+call conda create --name nefis2nc python=2.7 --yes
 
 :: Activate environment
 call conda activate nefis2nc

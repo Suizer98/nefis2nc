@@ -34,7 +34,6 @@ RUN pip2 install --upgrade setuptools
 RUN pip2 install -e .
 RUN pip2 install configparser
 RUN pip2 install pandas
-RUN pip2 install numpy
 RUN pip2 install matplotlib
 RUN pip2 install netCDF4==1.1.7.1
 RUN pip2 install scipy

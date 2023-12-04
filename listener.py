@@ -1,7 +1,8 @@
 import os
 import subprocess
 
-folder_path = "D:/Sea4cast/Sea4cast/Delft3D-sample/For Hengkek/Sample setup and simulation"
+# folder_path = "D:/Sea4cast/Sea4cast/Delft3D-sample/For Hengkek/Sample setup and simulation"
+folder_path = os.path.join(os.getcwd(), "tests/testdata/") # testing in docker container
 output_path = os.path.join(os.getcwd(), "tests/testdata/")
 
 trih_dat_file = None

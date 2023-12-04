@@ -1,3 +1,4 @@
 .tests/testdata/
 .idea/
 .venv/
+.stompy/

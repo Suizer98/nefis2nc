@@ -276,6 +276,12 @@ def create_organised_trimnc(datfile, deffile, outputfile):
             "dtype": "float",
             "standard_name": "eastward_sea_velocity",
         },
+        {
+            "name": "v1",
+            "dimensions": ["time", "n", "m", "k"],
+            "dtype": "float",
+            "standard_name": "northward_sea_velocity",
+        },
         # {
         #     "name": "s1",
         #     "dimensions": ["time", "n", "m", "k"],

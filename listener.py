@@ -1,5 +1,7 @@
 import os
 import subprocess
+import requests
+import json
 
 # folder_path = "D:/Sea4cast/Sea4cast/Delft3D-sample/For Hengkek/Sample setup and simulation"
 folder_path = os.path.join(os.getcwd(), "tests/testdata/") # testing in docker container
@@ -38,3 +40,21 @@ if trih_dat_file is not None and trih_def_file is not None:
     subprocess.call(["python", "trih2nc.py", trih_dat_file, trih_def_file, output_trih_file])
 if trim_dat_file is not None and trim_def_file is not None:
     subprocess.call(["python", "trim2nc.py", trim_dat_file, trim_def_file, output_trim_file])
+
+# Post file URL
+url = "http://localhost:8000/dms/trih-data-locations/import"
+filename = os.path.basename(output_trih_file)
+payload = {
+    "name": filename,  
+    "source": "test",  
+    "uploader": "test",  
+    "description": "test", 
+    "metadata": json.dumps({}),  # Ensure metadata is a JSON string
+    "has_inland_data": True,  
+    "has_coastal_data": False, 
+}
+files = {
+    "file": (filename, open(output_trih_file, "rb")),
+}
+response = requests.post(url, data=payload, files=files)
+print(response.status_code)

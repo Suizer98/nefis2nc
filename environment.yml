@@ -2,22 +2,37 @@ name: nefis2nc
 channels:
   - defaults
 dependencies:
+  - asn1crypto=1.4.0=py_0
   - autopep8=1.6.0=pyhd3eb1b0_0
   - blas=1.0=mkl
   - ca-certificates=2023.08.22=haa95532_0
   - certifi=2020.6.20=pyhd3eb1b0_3
+  - cffi=1.13.2=py27hcfb25f9_0
+  - chardet=3.0.4=py27_1003
+  - cryptography=2.8=py27hcfb25f9_0
+  - enum34=1.1.6=py27_1
   - icc_rt=2022.1.0=h6049295_2
+  - idna=2.10=pyhd3eb1b0_0
   - intel-openmp=2022.0.0=haa95532_3663
+  - ipaddress=1.0.23=py_0
   - mkl=2020.2=256
+  - openssl=1.1.1e=h0c8e037_0
   - pip=19.3.1=py27_0
   - pycodestyle=2.7.0=pyhd3eb1b0_0
+  - pycparser=2.20=py_2
+  - pyopenssl=20.0.1=pyhd3eb1b0_1
+  - pysocks=1.7.1=py27_0
   - python=2.7.18=hfb89ab9_0
+  - requests=2.25.1=pyhd3eb1b0_0
   - setuptools=44.0.0=py27_0
+  - six=1.16.0=pyhd3eb1b0_1
   - sqlite=3.30.1=h0c8e037_0
   - toml=0.10.2=pyhd3eb1b0_0
+  - urllib3=1.25.7=py27_0
   - vc=9=h2eaa2aa_6
   - vs2008_runtime=9.00.30729.1=haa95532_6
   - wheel=0.37.1=pyhd3eb1b0_0
+  - win_inet_pton=1.1.0=py27_0
   - wincertstore=0.2=py27hf04cefb_0
   - pip:
       - backports-functools-lru-cache==1.6.6
@@ -32,5 +47,4 @@ dependencies:
       - pytz==2023.3.post1
       - scipy==1.2.3
       - shapely==1.6.4.post2
-      - six==1.16.0
 prefix: D:\Miniconda\envs\nefis2nc

@@ -41,9 +41,9 @@ if trih_dat_file is not None and trih_def_file is not None:
 if trim_dat_file is not None and trim_def_file is not None:
     subprocess.call(["python", "trim2nc.py", trim_dat_file, trim_def_file, output_trim_file])
 
-# Post file URL for TrihDataLocation
-print("Importing trih data locations")
-url = "http://localhost:8000/dms/trih-data-locations/import"
+# Post file URL for Delft3DRuns
+print("Importing Delft3D Run ID")
+url = "http://localhost:8000/dms/delft3d-runs/import"
 filename = os.path.basename(output_trih_file)
 payload = {
     "name": filename,  
@@ -58,7 +58,26 @@ files = {
     "file": (filename, open(output_trih_file, "rb")),
 }
 response = requests.post(url, data=payload, files=files)
-print("Status code for TrihDataLocation:", response.status_code)
+print("Status code for Delft3DRuns:", response.status_code)
+
+# Post file URL for TrihDataLocation
+print("Importing trih data locations")
+url_trih_data_location = "http://localhost:8000/dms/trih-data-locations/import"
+filename_trih_data_location = os.path.basename(output_trih_file)
+payload_trih_data_location = {
+    "name": filename,  
+    "source": "test",  
+    "uploader": "test",  
+    "description": "test", 
+    "metadata": json.dumps({}),  # Ensure metadata is a JSON string
+    "has_inland_data": True,  
+    "has_coastal_data": False, 
+}
+files_trih_data_location = {
+    "file": (filename, open(output_trih_file, "rb")),
+}
+response_trih_data_location = requests.post(url_trih_data_location, data=payload_trih_data_location, files=files_trih_data_location)
+print("Status code for TrihDataLocation:", response_trih_data_location.status_code)
 
 # Post file URL for TrihData
 print("Importing trih water level data")

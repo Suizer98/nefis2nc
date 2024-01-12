@@ -154,6 +154,16 @@ def create_organised_trimnc(datfile, deffile, outputfile):
     masked_waterlevel = np.ma.masked_equal(waterlevel, 0)
     masked_waterlevel = masked_waterlevel.filled(np.nan)
 
+    # Access the 'velocity_x' variable
+    velocity_x = src_ds.variables["u1"]
+    masked_velocity_x = np.ma.masked_equal(velocity_x, 0)
+    masked_velocity_x = masked_velocity_x.filled(np.nan)
+
+    # Access the 'velocity_y' variable
+    velocity_y = src_ds.variables["v1"]
+    masked_velocity_y = np.ma.masked_equal(velocity_y, 0)
+    masked_velocity_y = masked_velocity_y.filled(np.nan)
+
     # Access the 'mn' variable
     nmax = src_ds.variables["nmax"][:]
     mmax = src_ds.variables["mmax"][:]
@@ -190,6 +200,13 @@ def create_organised_trimnc(datfile, deffile, outputfile):
     masked_latitude = masked_latitude.filled(np.nan)
     masked_longitude = masked_longitude.filled(np.nan)
 
+    # Access the 'kmax' variable
+    kmax = src_ds.variables["kmax"][0]
+
+    # Access the 'tau_x' and 'tau_y' variables from the source dataset
+    tau_x = src_ds.variables["tauksi"][:]
+    tau_y = src_ds.variables["taueta"][:]
+
     # Perform the shift
     # def rollrep(arr):
     #     arr = np.roll(arr, axis=0, shift=1)
@@ -200,7 +217,12 @@ def create_organised_trimnc(datfile, deffile, outputfile):
     # latitude = rollrep(latitude)
 
     # Add global attribute
-    dst_ds.setncattr("title", "NetCDF created from NEFIS-file {}".format(datfile))
+    dst_ds.setncattr(
+        "title",
+        "NetCDF created from NEFIS-file {}".format(
+            os.path.basename(datfile).replace("trim-", "")
+        ),
+    )
 
     # Add dimensions to the dataset
     dst_ds.createDimension("time", len(time))
@@ -265,23 +287,57 @@ def create_organised_trimnc(datfile, deffile, outputfile):
     lat_var[:] = masked_latitude
     lon_var[:] = masked_longitude
 
+    # Add k variable
+    k = dst_ds.createVariable("k", "int", ("k",))
+    k[:] = np.arange(1, kmax + 1)
+
     # Add waterlevel variable
     waterlevel_var = dst_ds.createVariable("waterlevel", "float", ("time", "m", "n"))
     waterlevel_var[:] = masked_waterlevel
 
+    # Add velocities variable
+    velocity_x_var = dst_ds.createVariable("velocity_x", "float", ("time", "m", "n"))
+    velocity_x_var[:] = masked_velocity_x
+    velocity_y_var = dst_ds.createVariable("velocity_y", "float", ("time", "m", "n"))
+    velocity_y_var[:] = masked_velocity_y
+
+    # Add tau_x and tau_y variables to the destination dataset
+    tau_x_var = dst_ds.createVariable("tau_x", float, ("time", "m", "n"))
+    tau_y_var = dst_ds.createVariable("tau_y", float, ("time", "m", "n"))
+    tau_x_var[:] = tau_x
+    tau_y_var[:] = tau_y
+
     variables = [
-        {
-            "name": "u1",
-            "dimensions": ["time", "n", "m", "k"],
-            "dtype": "float",
-            "standard_name": "eastward_sea_velocity",
-        },
-        {
-            "name": "v1",
-            "dimensions": ["time", "n", "m", "k"],
-            "dtype": "float",
-            "standard_name": "northward_sea_velocity",
-        },
+        # {
+        #     "name": "u1",
+        #     "dimensions": ["time", "m", "n", "k"],
+        #     "dtype": "float",
+        #     "standard_name": "eastward_sea_velocity",
+        # },
+        # {
+        #     "name": "v1",
+        #     "dimensions": ["time", "m", "n", "k"],
+        #     "dtype": "float",
+        #     "standard_name": "northward_sea_velocity",
+        # },
+        # {
+        #     "name": "kfu",
+        #     "dimensions": ["time", "m", "n", "k"],
+        #     "dtype": "float",
+        #     "standard_name": "For northward_sea_velocity field uses",
+        # },
+        # {
+        #     "name": "kfv",
+        #     "dimensions": ["time", "m", "n", "k"],
+        #     "dtype": "float",
+        #     "standard_name": "For northward_sea_velocity uses",
+        # },
+        # {
+        #     "name": "kcs",
+        #     "dimensions": ["m", "n"],
+        #     "dtype": "float",
+        #     "standard_name": "For mask uses",
+        # },
         # {
         #     "name": "s1",
         #     "dimensions": ["time", "n", "m", "k"],
@@ -295,10 +351,6 @@ def create_organised_trimnc(datfile, deffile, outputfile):
         #     "standard_name": "time"
         # },
     ]
-
-    # for name, var in variables:
-    #     if name != 'u1':
-    #         dst_ds.createVariable
 
     # Use the variables passed as an argument
     if variables is not None:

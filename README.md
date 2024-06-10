@@ -13,6 +13,9 @@ into more organised netcdf files. The trih2nc.py aims to create a netcdf file
 as close as possible to the output of vs_trih2nc.m, while the trim2nc do the same
 for vs_trim2nc.m.
 
+Tech stacks:
+![Tech stacks](https://skillicons.dev/icons?i=python,docker,ubuntu,bash,anaconda)
+
 For now the working codes are:
 1. trih2nc.py
 2. trim2nc.py

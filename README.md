@@ -14,7 +14,8 @@ as close as possible to the output of vs_trih2nc.m, while the trim2nc do the sam
 for vs_trim2nc.m.
 
 Tech stacks:
-![Tech stacks](https://skillicons.dev/icons?i=python,docker,ubuntu,bash,anaconda)
+
+![Tech stacks](https://skillicons.dev/icons?i=python,docker,ubuntu,bash,anaconda,matlab)
 
 For now the working codes are:
 1. trih2nc.py

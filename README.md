@@ -1,7 +1,5 @@
 # nefis2nc
 
-[[_TOC_]]
-
 ## Description
 
 Here is a working nefis2nc repo that based on rustychirs' works:
@@ -26,7 +24,7 @@ For now the working codes are:
 1. Install every dependencies needed inside Conda environment, see [conda method](#conda-method).
 2. Go to listener.py, make sure your folder contain Delft3D output, then edit variable as you wishes:
 ```
-folder_path = "D:/Sea4cast/Sea4cast/Delft3D-sample/For Hengkek/Sample setup and simulation"
+folder_path = "D:/Sample setup and simulation"
 output_path = os.path.join(os.getcwd(), "tests/testdata/")
 ```
 3. In your terminal or any possible executable ways, run 
@@ -93,3 +91,7 @@ for %%I in (whls\*.whl) do (
 conda install --yes scipy
 conda install --yes autopep8
 ```
+
+### Disclaimer
+The results might still differ a bit when comparing to the original output from MATLAB scripts. I guess maybe this is because the python one doesn't involve some computation like coordinate system or other factors.
+I suggest can checkout to this [repo](https://github.com/Suizer98/delft3d_octave]) instead. This one runs native MATLAB scripts without relying to use MATLAB software.
